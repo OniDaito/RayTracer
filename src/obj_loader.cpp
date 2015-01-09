@@ -5,6 +5,7 @@
 * @date 17/01/2014
 *
 */
+__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
 
 #include <obj_loader.hpp>
 

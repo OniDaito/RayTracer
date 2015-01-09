@@ -14,9 +14,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  */
+__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
 
 #include <simplex.hpp>
-
 
 /* 2D, 3D and 4D Simplex Noise functions return 'random' values in (-1, 1).
 

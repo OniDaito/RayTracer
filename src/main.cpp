@@ -5,6 +5,7 @@
 * @date 7/01/2015
 *
 */
+__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
 
 #include <glm/glm.hpp>
 #include <glm/vec3.hpp>
@@ -13,6 +14,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#include <limits.h>
 #include <stdlib.h> 
 #include <getopt.h>
 #include <string_utils.hpp>
@@ -21,6 +23,7 @@
 
 #include <simplex.hpp>
 
+#include <mpi.h>
 
 using namespace std;
 using namespace s9;
@@ -32,6 +35,7 @@ typedef struct {
   unsigned int width;
   unsigned int height;
   unsigned int num_bounces;
+  unsigned int frame;
   unsigned int num_rays_per_pixel;
   float ray_intensity;
   float near_plane;
@@ -79,6 +83,7 @@ struct Sphere {
 
 std::vector<Sphere> spheres;
 RaytraceOptions options;
+MPI_Status stat;
 
 
 // Test against a triangle
@@ -283,26 +288,26 @@ bool rayLightTest (Ray &r, RayHit &hit) {
 }
 
 
-// Main Raytrace Loop
+// fireRaysMPI
 
-void rayTraceLoop( std::vector<std::vector< glm::vec3 >> &bitmap) {
+glm::vec3 fireRaysMPI(int x, int y) {
 
   std::default_random_engine generator;
   std::uniform_real_distribution<float> distribution(0,1);
  
-  for (int y = 0; y < options.height; ++y){
-    for (int x = 0; x < options.width; ++x){
-      for (int i=0; i < options.num_rays_per_pixel; ++i){
-        // Create a new ray and away we go
-        Ray r = fireRay(x,y);
-        RayHit hit;
-        if (rayHitTest(r,hit)){
-          if(rayLightTest(r,hit))
-            bitmap[y][x] += hit.colour * options.ray_intensity;
-        }
-      } 
+  glm::vec3 colour(0,0,0);
+
+  for (int i=0; i < options.num_rays_per_pixel; ++i){
+    // Create a new ray and away we go
+    Ray r = fireRay(x,y);
+    RayHit hit;
+    if (rayHitTest(r,hit)){
+      if(rayLightTest(r,hit))
+        colour += hit.colour * options.ray_intensity;
     }
-  }
+  } 
+
+  return colour;
 }
 
 
@@ -329,6 +334,10 @@ void parseCommandOptions (int argc, const char * argv[]) {
 
       case 'f' :
         options.filename = std::string(optarg);
+        break;
+
+      case 'n' :
+        options.frame = FromStringS9<unsigned int>( std::string(optarg) );
         break;
 
       case 'h' :
@@ -386,6 +395,7 @@ void writeBitmap (std::vector< std::vector< glm::vec3 > > &bitmap) {
     int        clr_important;       // 0
   };
 
+
   ofstream myfile("frame.bmp",  ios::out | std::ios::binary);
 
   //std::cout << sizeof(bmp24_file_header) << "," << sizeof(bmp24_info_header) << std::endl;
@@ -406,8 +416,8 @@ void writeBitmap (std::vector< std::vector< glm::vec3 > > &bitmap) {
   // Write the header
 
   info.size = sizeof(bmp24_info_header);
-  info.width = long(options.width);
-  info.height = long(options.height);
+  info.width = static_cast<long>(options.width);
+  info.height = static_cast<long>(options.height);
   info.planes = 1;
   info.bit_count = 24;
   info.compression = 0;
@@ -417,8 +427,8 @@ void writeBitmap (std::vector< std::vector< glm::vec3 > > &bitmap) {
   info.clr_used = 0;
   info.clr_important = 0;
 
-  myfile.write((char*)&header, sizeof(header));
-  myfile.write((char*)&info, sizeof(info));
+  myfile.write( reinterpret_cast<char *>(&header), sizeof(header));
+  myfile.write( reinterpret_cast<char *>(&info), sizeof(info));
 
   for (int y = options.height - 1; y >= 0; --y ){
 
@@ -434,13 +444,122 @@ void writeBitmap (std::vector< std::vector< glm::vec3 > > &bitmap) {
     }
   }
   
-
   myfile.close();
 }
 
 
+// The server process basically listens for messages
+// and pulls in pixel values. TBF we could actually use
+// the MPI map and fold functions?
+
+void runServerProcess(int num_mpi_procs) {
+
+  std::vector< std::vector< glm::vec3 > > bitmap;
+
+  // Set the background to black
+  for (int i = 0; i < options.height; ++i){
+    bitmap.push_back( std::vector< glm::vec3 >() );
+    for (int j = 0; j < options.width; ++j){
+      bitmap[i].push_back( glm::vec3(0,0,0) );
+    }
+  }
+
+  // Now listen to the clients and fill our pixel buffer
+
+  long int pixel_count = 0;
+
+  while (pixel_count < options.height * options.width) {
+    MPI_Status status;
+    int source;
+    int tag = 999;
+    float colour[3];
+    int coord[2];
+
+    for (source = 1; source < num_mpi_procs; ++source ){
+      MPI_Recv(coord,2,MPI_UNSIGNED,source,tag,MPI_COMM_WORLD,&status);
+      MPI_Recv(colour,3,MPI_FLOAT,source,tag,MPI_COMM_WORLD,&status);
+
+      bitmap[coord[0]][coord[1]] = glm::vec3(colour[0],colour[1],colour[2]);
+
+      pixel_count++;
+
+    }
+  }
+
+  // We've got all we need so write out 
+  writeBitmap(bitmap);
+
+}
+
+// Run a client process - return the colour data to our server with 
+// the pixel we've coloured in.
+
+void runClientProcess(int offset, int range) {
+
+  for (int i=0; i < range; ++i) {
+    unsigned int x = (offset + i) % options.width;
+    unsigned int y = (offset + i) / options.width;
+
+    glm::vec3 colour = fireRaysMPI(x,y);
+
+    int dest = 0;
+    int tag = 999;
+
+    float colour_packed[3];
+    colour_packed[0] = colour.x;
+    colour_packed[1] = colour.y;
+    colour_packed[2] = colour.z;
+
+    unsigned int coord_packed[2];
+    coord_packed[0] = x;
+    coord_packed[1] = y;
+
+    MPI_Send(colour_packed,3,MPI_FLOAT,dest,tag,MPI_COMM_WORLD);
+    MPI_Send(coord_packed,2,MPI_UNSIGNED,dest,tag,MPI_COMM_WORLD);
+
+  }
+
+}
+
+void rayTraceLoop() {
+
+   std::vector<std::vector< glm::vec3 >> bitmap;
+
+  std::default_random_engine generator;
+  std::uniform_real_distribution<float> distribution(0,1);
+  for (int y = 0; y < options.height; ++y){
+    for (int x = 0; x < options.width; ++x){
+      for (int i=0; i < options.num_rays_per_pixel; ++i){
+      // Create a new ray and away we go
+      Ray r = fireRay(x,y);
+      RayHit hit;
+      if (rayHitTest(r,hit)){
+        if(rayLightTest(r,hit))
+          bitmap[y][x] += hit.colour * options.ray_intensity;
+        }
+      }
+    }
+  }
+}
+
+// Our main function - sets up MPI and similar
 
 int main (int argc, const char * argv[]) {
+
+  // Naughty! Stripping const which is a tad bad
+  MPI_Init(&argc, const_cast<char***>(&argv));
+
+  int numprocs;
+  int myid;
+  int length_name;
+  char name[200];
+
+  MPI_Comm_size(MPI_COMM_WORLD,&numprocs);
+  MPI_Comm_rank(MPI_COMM_WORLD,&myid);
+  
+  MPI_Get_processor_name(name, &length_name);
+
+  std::cout << "MPI NumProcs: " << numprocs << ", id: " << myid << ", name: " << name << std::endl;  
 
   // Defaults
   options.width = 320;
@@ -455,9 +574,7 @@ int main (int argc, const char * argv[]) {
 
   std::cout << "Rendering size " << options.width << ", " << options.height <<  " for file: " << options.filename << std::endl;
 
-  options.perspective = glm::perspective(48.0f, float(options.width) / float(options.height), options.near_plane, 10.f);
-
-  std::vector< std::vector< glm::vec3 > > bitmap;
+  options.perspective = glm::perspective(48.0f, static_cast<float>(options.width) / static_cast<float>(options.height), options.near_plane, 10.f);
 
   Sphere s0(glm::vec3(0.0, 0.0, 2.0), 0.5);
   Sphere s1(glm::vec3(1.5, 0.1, 2.0), 0.5);
@@ -465,18 +582,20 @@ int main (int argc, const char * argv[]) {
   spheres.push_back(s0);
   spheres.push_back(s1);
 
-  // Set the background to black
-  for (int i = 0; i < options.height; ++i){
-    bitmap.push_back( std::vector< glm::vec3 >() );
-    for (int j = 0; j < options.width; ++j){
-      bitmap[i].push_back( glm::vec3(0,0,0) );
+  // Make some decisions about client and server processes
+
+  // We need to divide up the workload on our machines
+  if (numprocs > 1){
+    if (myid == 0 ) { 
+      runServerProcess(numprocs);
+    } else {
+      // Divide up our image amongst the processes
+      int range = options.width * options.height / (numprocs-1);
+      runClientProcess(range * (myid-1), range);
     }
   }
 
-  rayTraceLoop(bitmap);
-
-
-  // Output bitmap
-  writeBitmap(bitmap);
+  
+  MPI_Finalize();
 
 }
