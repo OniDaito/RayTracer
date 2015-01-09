@@ -79,6 +79,16 @@ struct Sphere {
   float radius;
 };
 
+
+// MPI Custom Type
+
+typedef struct {
+  float r,g,b;
+  int x,y;
+}MPIPixel;
+
+MPI_Datatype pixelType;
+
 // Naughty Globals ><
 
 std::vector<Sphere> spheres;
@@ -172,11 +182,6 @@ bool testSphere (Ray ray, Sphere sphere, RayHit &hit) {
     return false;
   }
   
-  /*if (dist0 < dist1)
-    hit.dist = dist0;
-  else
-    hit.dist = dist1;
-*/
 
   hit.loc = ray.direction * hit.dist + ray.origin;
 
@@ -214,21 +219,21 @@ bool testGround (Ray ray, RayHit &hit) {
 Ray fireRay(int x, int y) {
 
   glm::vec3 origin (0,0.0,0);
+  
+  // Apocrita GCC doesnt like this :(
   //std::default_random_engine generator;
   //std::uniform_real_distribution<float> distribution(0,1);
+  //float rr = distribution(generator) * 10.0;
+  //float noise = raw_noise_2d(x + rr, y + rr) * 0.001;
 
   Ray r;
 
   glm::vec2 position (float(x) / float(options.width) * 2.0 - 1.0, 
     float(options.height - y) / float(options.height) * 2.0 - 1.0);
 
-  //float rr = distribution(generator) * 10.0;
-  //float noise = raw_noise_2d(x + rr, y + rr) * 0.001;
-
   glm::vec3 t3 = glm::normalize(glm::vec3(position, options.near_plane));
   glm::vec4 t4 = options.perspective * glm::vec4(t3,1.0);
   r.direction =  glm::normalize(glm::vec3(t4.x, t4.y, t4.z) / t4.w);
-  //r.direction = t3;
   r.origin = origin;
   
   return r;
@@ -288,7 +293,7 @@ bool rayLightTest (Ray &r, RayHit &hit) {
 }
 
 
-// fireRaysMPI
+// fireRaysMPI - We could probably integrate this into fireRay
 
 glm::vec3 fireRaysMPI(int x, int y) {
 
@@ -468,19 +473,17 @@ void runServerProcess(int num_mpi_procs) {
 
   long int pixel_count = 0;
 
-  while (pixel_count < options.height * options.width) {
+  // TODO - This -3 is a bug. Despite checking for divisions with
+  // remainders in the main function, it still fails. V odd!
+  while (pixel_count < (options.height * options.width) - 3) {
     MPI_Status status;
     int source;
     int tag = 999;
-    float colour[3];
-    int coord[2];
+    MPIPixel pixel;
 
-    for (source = 1; source < num_mpi_procs; ++source ){
-      MPI_Recv(coord,2,MPI_UNSIGNED,source,tag,MPI_COMM_WORLD,&status);
-      MPI_Recv(colour,3,MPI_FLOAT,source,tag,MPI_COMM_WORLD,&status);
-
-      bitmap[coord[0]][coord[1]] = glm::vec3(colour[0],colour[1],colour[2]);
-
+    for (source = 1; source < num_mpi_procs; source++ ){
+      MPI_Recv(&pixel,1,pixelType,source,tag,MPI_COMM_WORLD,&status);
+      bitmap[pixel.y][pixel.x] = glm::vec3(pixel.r,pixel.g,pixel.b);
       pixel_count++;
 
     }
@@ -497,25 +500,24 @@ void runServerProcess(int num_mpi_procs) {
 void runClientProcess(int offset, int range) {
 
   for (int i=0; i < range; ++i) {
-    unsigned int x = (offset + i) % options.width;
-    unsigned int y = (offset + i) / options.width;
+    int x = (offset + i) % options.width;
+    int y = (offset + i) / options.width;
+
+    std::cout << x << "," << y << std::endl;
 
     glm::vec3 colour = fireRaysMPI(x,y);
 
     int dest = 0;
     int tag = 999;
 
-    float colour_packed[3];
-    colour_packed[0] = colour.x;
-    colour_packed[1] = colour.y;
-    colour_packed[2] = colour.z;
-
-    unsigned int coord_packed[2];
-    coord_packed[0] = x;
-    coord_packed[1] = y;
-
-    MPI_Send(colour_packed,3,MPI_FLOAT,dest,tag,MPI_COMM_WORLD);
-    MPI_Send(coord_packed,2,MPI_UNSIGNED,dest,tag,MPI_COMM_WORLD);
+    MPIPixel pixel;
+    pixel.x = x;
+    pixel.y = y;
+    pixel.r = colour.x;
+    pixel.g = colour.y;
+    pixel.b = colour.z;
+  
+    MPI_Send(&pixel,1,pixelType,dest,tag,MPI_COMM_WORLD);
 
   }
 
@@ -549,6 +551,7 @@ int main (int argc, const char * argv[]) {
   // Naughty! Stripping const which is a tad bad
   MPI_Init(&argc, const_cast<char***>(&argv));
 
+
   int numprocs;
   int myid;
   int length_name;
@@ -576,6 +579,27 @@ int main (int argc, const char * argv[]) {
 
   options.perspective = glm::perspective(48.0f, static_cast<float>(options.width) / static_cast<float>(options.height), options.near_plane, 10.f);
 
+  // Setup MPI Type
+  // Setup description of the 3 MPI_FLOAT fields x, y, z,
+  MPI_Aint  offsets[2], extent; 
+  MPI_Datatype oldtypes[2];
+  int blockcounts[2]; 
+
+  offsets[0] = 0; 
+  oldtypes[0] = MPI_FLOAT; 
+  blockcounts[0] = 3; 
+  // Setup description of the 2 MPI_INT fields x, y 
+  // Need to first figure offset by getting size of MPI_FLOAT 
+  MPI_Type_extent(MPI_FLOAT, &extent); 
+  offsets[1] = 3 * extent; 
+  oldtypes[1] = MPI_INT; 
+  blockcounts[1] = 2; 
+
+  MPI_Type_struct(2, blockcounts, offsets, oldtypes, &pixelType); 
+  MPI_Type_commit(&pixelType); 
+
+  // Load Geometry
+
   Sphere s0(glm::vec3(0.0, 0.0, 2.0), 0.5);
   Sphere s1(glm::vec3(1.5, 0.1, 2.0), 0.5);
 
@@ -591,7 +615,15 @@ int main (int argc, const char * argv[]) {
     } else {
       // Divide up our image amongst the processes
       int range = options.width * options.height / (numprocs-1);
-      runClientProcess(range * (myid-1), range);
+
+      // We may have leftovers though so the last id can deal with these
+      if (myid == numprocs-1){
+        int extra =  (options.width * options.height) % (numprocs-1); 
+        runClientProcess(range * (myid-1), range + extra);
+      } else{
+        runClientProcess(range * (myid-1), range);
+      }
+
     }
   }
 
