@@ -214,18 +214,18 @@ bool testGround (Ray ray, RayHit &hit) {
 Ray fireRay(int x, int y) {
 
   glm::vec3 origin (0,0.0,0);
-  std::default_random_engine generator;
-  std::uniform_real_distribution<float> distribution(0,1);
+  //std::default_random_engine generator;
+  //std::uniform_real_distribution<float> distribution(0,1);
 
   Ray r;
 
   glm::vec2 position (float(x) / float(options.width) * 2.0 - 1.0, 
     float(options.height - y) / float(options.height) * 2.0 - 1.0);
 
-  float rr = distribution(generator) * 10.0;
-  float noise = raw_noise_2d(x + rr, y + rr) * 0.001;
+  //float rr = distribution(generator) * 10.0;
+  //float noise = raw_noise_2d(x + rr, y + rr) * 0.001;
 
-  glm::vec3 t3 = glm::normalize(glm::vec3(position + noise, options.near_plane));
+  glm::vec3 t3 = glm::normalize(glm::vec3(position, options.near_plane));
   glm::vec4 t4 = options.perspective * glm::vec4(t3,1.0);
   r.direction =  glm::normalize(glm::vec3(t4.x, t4.y, t4.z) / t4.w);
   //r.direction = t3;
@@ -292,8 +292,8 @@ bool rayLightTest (Ray &r, RayHit &hit) {
 
 glm::vec3 fireRaysMPI(int x, int y) {
 
-  std::default_random_engine generator;
-  std::uniform_real_distribution<float> distribution(0,1);
+  //std::default_random_engine generator;
+  //std::uniform_real_distribution<float> distribution(0,1);
  
   glm::vec3 colour(0,0,0);
 
@@ -523,10 +523,10 @@ void runClientProcess(int offset, int range) {
 
 void rayTraceLoop() {
 
-   std::vector<std::vector< glm::vec3 >> bitmap;
+  std::vector<std::vector< glm::vec3 >> bitmap;
 
-  std::default_random_engine generator;
-  std::uniform_real_distribution<float> distribution(0,1);
+  //std::default_random_engine generator;
+  //std::uniform_real_distribution<float> distribution(0,1);
   for (int y = 0; y < options.height; ++y){
     for (int x = 0; x < options.width; ++x){
       for (int i=0; i < options.num_rays_per_pixel; ++i){

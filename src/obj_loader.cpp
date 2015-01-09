@@ -95,9 +95,10 @@ void ObjMesh::Parse(const s9::File &file) {
       std::istringstream v(line.substr(2));
 
       ///\todo figure out this code
-      vector<string> verts{istream_iterator<string>{v},
-         istream_iterator<string>{}};
-
+      //vector<string> verts{istream_iterator<string>{v},
+      //   istream_iterator<string>{}};
+      // Commented out for Apocrita and its lack of C++11
+      vector<string> verts;
     
       if (verts.size() == 3) {
 
