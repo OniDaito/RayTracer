@@ -220,16 +220,19 @@ Ray fireRay(int x, int y) {
 
   glm::vec3 origin (0,0.0,0);
   
-  // Apocrita GCC doesnt like this :(
-  //std::default_random_engine generator;
-  //std::uniform_real_distribution<float> distribution(0,1);
-  //float rr = distribution(generator) * 10.0;
-  //float noise = raw_noise_2d(x + rr, y + rr) * 0.001;
+  // Apocrita GCC doesnt like this random stuff :(
+  std::default_random_engine generator;
+  std::uniform_real_distribution<float> distribution(0,1);
+  float rr = distribution(generator) * 2.0f - 1.0f;
+  float noise = raw_noise_2d(rr * 10.0f, rr * 10.0f) * 0.01;
 
   Ray r;
 
   glm::vec2 position (float(x) / float(options.width) * 2.0 - 1.0, 
-    float(options.height - y) / float(options.height) * 2.0 - 1.0);
+    float(options.height - y ) / float(options.height) * 2.0 - 1.0);
+
+  position.x += noise;
+  position.y += noise;
 
   glm::vec3 t3 = glm::normalize(glm::vec3(position, options.near_plane));
   glm::vec4 t4 = options.perspective * glm::vec4(t3,1.0);
@@ -280,12 +283,17 @@ bool rayHitTest (Ray &r, RayHit &hit) {
 
 bool rayLightTest (Ray &r, RayHit &hit) {
 
-  glm::vec3 light_pos (0.0,3.0, 3.0);
+  glm::vec4 light_pos (0.0f, 3.0f, 3.0f, 1.0f);
+  glm::mat4 idm(1.0f);
+
+  idm = glm::rotate( idm, static_cast<float>(options.frame), glm::vec3(0.0f, 1.0f, 0.0f));
+
+  light_pos = light_pos * idm;
 
   // Move slightly off the origin along the normal
   Ray ray;
   ray.origin = hit.loc + (hit.normal * 0.001f);
-  ray.direction = glm::normalize(light_pos - ray.origin);
+  ray.direction = glm::normalize( glm::vec3(light_pos.x, light_pos.y, light_pos.z) - ray.origin);
   RayHit temp_hit;
 
   return (!rayHitTest(ray,temp_hit));
@@ -328,7 +336,7 @@ void parseCommandOptions (int argc, const char * argv[]) {
   };
   int option_index = 0;
 
-  while ((c = getopt_long(argc, (char **)argv, "w:h:f:?", long_options, &option_index)) != -1) {
+  while ((c = getopt_long(argc, (char **)argv, "w:h:f:n:?", long_options, &option_index)) != -1) {
   	int this_option_optind = optind ? optind : 1;
   	switch (c) {
       case 0 :
@@ -502,8 +510,6 @@ void runClientProcess(int offset, int range) {
   for (int i=0; i < range; ++i) {
     int x = (offset + i) % options.width;
     int y = (offset + i) / options.width;
-
-    std::cout << x << "," << y << std::endl;
 
     glm::vec3 colour = fireRaysMPI(x,y);
 
