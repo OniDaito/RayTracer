@@ -409,7 +409,7 @@ void writeBitmap (std::vector< std::vector< glm::vec3 > > &bitmap) {
   };
 
 
-  ofstream myfile("frame.bmp",  ios::out | std::ios::binary);
+  ofstream myfile(options.filename,  ios::out | std::ios::binary);
 
   //std::cout << sizeof(bmp24_file_header) << "," << sizeof(bmp24_info_header) << std::endl;
 
