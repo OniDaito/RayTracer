@@ -225,7 +225,7 @@ namespace detail
 	}
 
 	// trunc
-#	if GLM_HAS_CXX11_STL
+#ifdef GLM_HAS_CXX11_STL
 		using ::std::trunc;
 #	else
 		template <typename genType>
@@ -244,7 +244,7 @@ namespace detail
 	}
 
 	// round
-#	if GLM_HAS_CXX11_STL
+#ifdef GLM_HAS_CXX11_STL
 		using ::std::round;
 #	else
 		template <typename genType>
@@ -538,7 +538,7 @@ namespace detail
 		return tmp * tmp * (static_cast<T>(3) - static_cast<T>(2) * tmp);
 	}
 
-#	if GLM_HAS_CXX11_STL
+#ifdef GLM_HAS_CXX11_STL
 		using std::isnan;
 #	else
 		template <typename genType> 
@@ -546,7 +546,7 @@ namespace detail
 		{
 			GLM_STATIC_ASSERT(std::numeric_limits<genType>::is_iec559, "'isnan' only accept floating-point inputs");
 
-#			if GLM_HAS_CXX11_STL
+#ifdef GLM_HAS_CXX11_STL
 				return std::isnan(x);
 #			elif GLM_COMPILER & (GLM_COMPILER_VC | GLM_COMPILER_INTEL)
 				return _isnan(x) != 0;
@@ -572,7 +572,7 @@ namespace detail
 		return detail::functor1<bool, T, P, vecType>::call(isnan, x);
 	}
 
-#	if GLM_HAS_CXX11_STL
+#ifdef GLM_HAS_CXX11_STL
 		using std::isinf;
 #	else
 		template <typename genType> 
@@ -580,7 +580,7 @@ namespace detail
 		{
 			GLM_STATIC_ASSERT(std::numeric_limits<genType>::is_iec559, "'isinf' only accept floating-point inputs");
 
-#			if GLM_HAS_CXX11_STL
+#			ifdef GLM_HAS_CXX11_STL
 				return std::isinf(x);
 #			elif GLM_COMPILER & (GLM_COMPILER_INTEL | GLM_COMPILER_VC)
 				return _fpclass(x) == _FPCLASS_NINF || _fpclass(x) == _FPCLASS_PINF;

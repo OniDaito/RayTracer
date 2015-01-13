@@ -39,7 +39,7 @@
 namespace glm{
 namespace detail
 {
-#	if GLM_HAS_CXX11_STL
+#ifdef GLM_HAS_CXX11_STL
 		using std::log2;
 #	else
 		template <typename genType>
