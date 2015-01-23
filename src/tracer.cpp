@@ -17,7 +17,7 @@
 int MAX_BOUNCES;
 
 // Pre-define
-Ray traceRay(Ray r, const Scene &scene);
+glm::vec3 traceRay(Ray ray, const Scene &scene);
 
 // Fire a ray from the origin through our vritual screen
 
@@ -52,9 +52,10 @@ Ray generateRay(int x, int y, const int &w, const int &h,
 
 // See if this ray actually intersects with anything in the scene
 // If it does not, alter its colour via the light
-void shadowRay(Ray &r, const RayHit &hit, const Scene &scene){
+glm::vec3 shadowRay(Ray &r, const RayHit &hit, const Scene &scene){
   
   RayHit hitlight;
+  glm::vec3 light_colour(0.0f,0.0f,0.0f);
 
   for (LightPoint l : scene.lights){
 
@@ -69,61 +70,47 @@ void shadowRay(Ray &r, const RayHit &hit, const Scene &scene){
       occ = true;      
     }
 
-
     // Triangles
     for (Triangle t : scene.triangles){
 
     }
 
     if (!occ){
-      r.colour += l.colour;
+      light_colour += l.colour;
     }
   }
+  return light_colour;
 }
 
-// Reflect our ray, taking on some new colours depending on the material
-// Reduce the intensity a little bit too!
-Ray reflectionRay(Ray ray, RayHit hit, const Scene &scene){
-  Ray rp;
-
-  rp.direction = glm::reflect(ray.direction,hit.normal);
-  rp.origin = hit.loc;
-  rp.bounces = ray.bounces + 1;
-  // Not too sure about this colour calculation but nm for now
-  //rp.colour = (ray.colour * hit.material.shiny) + (ray.colour * hit.material.colour * (1.0f - hit.material.shiny));
-  rp.colour = ray.colour * hit.material.colour;
-
-  return traceRay(rp,scene);
-
-}
-
-Ray refractionRay(Ray r, RayHit hit, const Scene &scene){
+/*
+glm refractionRay(Ray r, RayHit hit, const Scene &scene){
   Ray rp;
 
   float eta = 1.0f;
   rp.direction = glm::refract(r.direction,hit.normal,eta);
   rp.origin = hit.loc;
   rp.bounces = r.bounces + 1;
-  // Not too sure about this colour calculation but nm for now
-  rp.colour = (r.colour * hit.material.shiny) + (r.colour * hit.material.colour * (1.0f - hit.material.shiny));
 
   return traceRay(rp,scene);
-}
+}*/
 
 
 // Recursive call for our ray with reflection and refraction and light tests
-Ray traceRay(Ray r, const Scene &scene){
+// On return we get the computed colour
+glm::vec3 traceRay(Ray ray, const Scene &scene){
 
-  if (r.bounces < MAX_BOUNCES){
+  glm::vec3 colour(0.0f,0.0f,0.0f);
+
+  if (ray.bounces < MAX_BOUNCES){
     std::vector<RayHit> hits;
-    RayHit hit;
+    RayHit sphere_hit, ground_hit;
 
     // Spheres    
-    if(testAllSpheres(r,scene.spheres,hit)){
-      hits.push_back(hit);
+    if(testAllSpheres(ray,scene.spheres,sphere_hit)){
+      hits.push_back(sphere_hit);
     } 
-    if (testGround(r,hit)){
-      hits.push_back(hit);
+    if (testGround(ray,ground_hit)){
+      hits.push_back(ground_hit);
     }
 
     // Triangles
@@ -131,16 +118,32 @@ Ray traceRay(Ray r, const Scene &scene){
       //hits.push_back(hit);
     }
     
-
     if (hits.size() > 0){
       std::sort (hits.begin(), hits.end(), sortHits);
-      shadowRay(r,hits[0],scene);
-      Ray rp = reflectionRay(r,hits[0],scene);
-      r.colour += rp.colour;
+
+      RayHit hit = hits[0]; // The nearest thing hit
+
+      // Reflection
+      Ray ray_reflect;
+      ray_reflect.direction = glm::reflect(ray.direction,hit.normal);
+      ray_reflect.origin = hit.loc;
+      ray_reflect.bounces += 1;
+
+      colour += traceRay(ray_reflect, scene) * hit.material.shiny;
+
+      //  Light pass
+      colour += shadowRay(ray,hits[0],scene) * hit.material.colour * (1.0f - hit.material.shiny);
+
+    
+      // Refraction
+      // Yet to come
+
+           
+
     }
   }
 
-  return r;
+  return colour;
 }
 
 
@@ -155,15 +158,11 @@ glm::vec3 fireRays(int x, int y, const int &w, const int &h,
 
   MAX_BOUNCES = max_bounces;
 
-  //std::default_random_engine generator;
-  //std::uniform_real_distribution<float> distribution(0,1);
-
   glm::vec3 pixel_colour(0.0f,0.0f,0.0f);
 
   for (int i=0; i < num_rays_per_pixel; ++i){
     Ray ray = generateRay(x,y,w,h,near_plane,far_plane,perspective);
-    ray = traceRay(ray,scene);
-    pixel_colour += ray.colour;
+    pixel_colour += traceRay(ray,scene);
   } 
 
   return pixel_colour;

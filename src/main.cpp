@@ -25,6 +25,8 @@
 
 #include <mpi.h>
 
+#include <X11/Xlib.h>
+
 #include "main.hpp"
 #include "geometry.hpp"
 #include "tracer.hpp"
@@ -37,6 +39,11 @@ using namespace s9;
 RaytraceOptions options;
 MPI_Status stat;
 Scene scene;
+
+Display *display;
+Window window;
+int xid;
+
 
 // Pre-define for now - makes the file a bit neater
 void writeBitmap (std::vector< std::vector< glm::vec3 > > &bitmap);
@@ -78,9 +85,49 @@ void runServerProcess(int num_mpi_procs) {
     }
   }
 
-  // We've got all we need so write out 
-  writeBitmap(bitmap);
 
+
+  // We've got all we need so write out 
+    writeBitmap(bitmap);
+
+}
+
+void runServerProcessLive (int num_mpi_procs) {
+  XEvent e;
+
+  std::vector< std::vector< glm::vec3 > > bitmap;
+   // Set the background to black
+  for (int i = 0; i < options.height; ++i){
+    bitmap.push_back( std::vector< glm::vec3 >() );
+    for (int j = 0; j < options.width; ++j){
+      bitmap[i].push_back( glm::vec3(0,0,0) );
+    }
+  }
+
+  long int pixel_count = 0;
+
+  MPI_Status status;
+  int source;
+  int tag = 999;
+  MPIPixel pixel;
+
+  while (1) {
+    XNextEvent(display, &e);
+    if (e.type == Expose) {
+       XFillRectangle(display, window, DefaultGC(display, xid), 20, 20, 10, 10);
+    }
+
+   if (e.type == KeyPress)
+     break;
+
+    if (pixel_count < (options.height * options.width) - 3) {
+      for (source = 1; source < num_mpi_procs; source++ ){
+        MPI_Recv(&pixel,1,pixelType,source,tag,MPI_COMM_WORLD,&status);
+        bitmap[pixel.y][pixel.x] = glm::vec3(pixel.r,pixel.g,pixel.b);
+        pixel_count++;
+      }
+    }
+  }
 }
 
 // Run a client process - return the colour data to our server with 
@@ -130,7 +177,7 @@ void parseCommandOptions (int argc, const char * argv[]) {
   };
   int option_index = 0;
 
-  while ((c = getopt_long(argc, (char **)argv, "w:h:f:n:b:?", long_options, &option_index)) != -1) {
+  while ((c = getopt_long(argc, (char **)argv, "w:h:f:n:b:?x", long_options, &option_index)) != -1) {
   	int this_option_optind = optind ? optind : 1;
   	switch (c) {
       case 0 :
@@ -149,6 +196,10 @@ void parseCommandOptions (int argc, const char * argv[]) {
 
       case 'b' :
         options.num_bounces = FromStringS9<unsigned int>( std::string(optarg) );
+        break;
+
+      case 'x' :
+        options.live = true;
         break;
 
       case 'h' :
@@ -264,16 +315,19 @@ void setScene(){
 
   // Test Spheres
 
-  Sphere s0(glm::vec3(0.3f, 0.2f, 1.5f), 0.75f);
-  Sphere s1(glm::vec3(1.1f, 1.2f, 4.5f), 0.75f);
+  Sphere s0(glm::vec3(0.5f, 0.8f, 2.5f), 1.0f);
+  Sphere s1(glm::vec3(1.3f, 0.1f, 3.5f), 0.75f);
   Sphere s2(glm::vec3(-1.2f, 0.2f, 2.5f), 0.75f);
-  Sphere s3(glm::vec3(0.0f, -0.4f, 3.0f), 1.0f);
+  Sphere s3(glm::vec3(0.0f, -0.1f, 2.0f), 0.75f);
 
-  s0.material.shiny = 1.0;
-  s1.material.shiny = 1.0;
+  s0.material.shiny = 0.3;
+  s1.material.shiny = 0.1;
+  s3.material.shiny = 0.9;
 
-  s0.material.colour = glm::vec3(0.0f,0.1f,1.0f);
+  s0.material.colour = glm::vec3(0.0f,0.0f,1.0f);
+  s1.material.colour = glm::vec3(1.0f,0.0f,0.0f);
   s2.material.colour = glm::vec3(0.0f,1.0f,1.0f);
+  s3.material.colour = glm::vec3(1.0f,1.0f,1.0f);
 
   scene.spheres.push_back(s0);
   scene.spheres.push_back(s1);
@@ -289,11 +343,32 @@ void setScene(){
 
   LightPoint l1;
   l1.pos = glm::vec3(1.0f,0.0f,-1.0f);
-  l1.colour = glm::vec3(0.1f,0.0f,0.0f);
+  l1.colour = glm::vec3(0.1f,0.1f,0.1f);
   scene.lights.push_back(l1);
 
 
+  LightPoint l2;
+  l1.pos = glm::vec3(-5.0f,5.0f,15.0f);
+  l1.colour = glm::vec3(0.1f,0.0f,0.1f);
+  scene.lights.push_back(l2);
 }
+
+void createWindow() {
+  
+  std::cout << "Creating live view window..." << std::endl;
+
+  display = XOpenDisplay(NULL);
+  if (display == NULL) {
+    fprintf(stderr, "Cannot open display\n");
+  }
+
+  xid = DefaultScreen(display);
+  window = XCreateSimpleWindow(display, RootWindow(display, xid), 10, 10, options.width, options.height, 1,
+                         BlackPixel(display, xid), WhitePixel(display, xid));
+  XSelectInput(display, window, ExposureMask | KeyPressMask);
+  XMapWindow(display, window);
+}
+
 
 
 // Our main function - sets up MPI and similar
@@ -357,7 +432,18 @@ int main (int argc, const char * argv[]) {
   // We need to divide up the workload on our machines
   if (numprocs > 1){
     if (myid == 0 ) { 
-      runServerProcess(numprocs);
+
+      // Main process - create our window
+      if (options.live){
+        createWindow();
+        runServerProcessLive(numprocs);
+      } else {
+        runServerProcess(numprocs);
+      }
+
+      if (options.live)
+        XCloseDisplay(display);
+
     } else {
       // Divide up our image amongst the processes
       int range = options.width * options.height / (numprocs-1);
@@ -374,5 +460,6 @@ int main (int argc, const char * argv[]) {
   }
 
   MPI_Finalize();
+
 
 }

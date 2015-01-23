@@ -12,6 +12,7 @@ typedef struct {
   float ray_intensity;
   float near_plane;
   float far_plane;
+  bool live;
   glm::mat4 perspective;
   std::string filename;
 } RaytraceOptions;

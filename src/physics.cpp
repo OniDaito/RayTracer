@@ -142,7 +142,8 @@ bool testAllSpheres(Ray ray, std::vector<Sphere> spheres, RayHit &hit){
 
 bool testGround (Ray ray, RayHit &hit) {
 
-  if ( ray.direction.y > 0)
+
+  if ( ray.direction.y >= 0)
     return false;
 
   // abs term here was actually causing integer conversion oddly :S
