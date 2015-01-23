@@ -8,7 +8,7 @@ include_directories( "include/glm" )
 # Basic includes
 include_directories( "include" )
 
-ADD_EXECUTABLE(raytracer src/main.cpp src/obj_loader.cpp src/file.cpp src/simplex.cpp)
+ADD_EXECUTABLE(raytracer src/main.cpp src/obj_loader.cpp src/file.cpp src/simplex.cpp src/physics.cpp src/tracer.cpp)
 SET(CMAKE_C_COMPILER mpicc)
 SET(CMAKE_CXX_COMPILER mpicxx)
 

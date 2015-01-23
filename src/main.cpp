@@ -5,7 +5,7 @@
 * @date 7/01/2015
 *
 */
-__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
+//__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
 
 #include <glm/glm.hpp>
 #include <glm/vec3.hpp>
@@ -25,302 +25,96 @@ __asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
 
 #include <mpi.h>
 
+#include "main.hpp"
+#include "geometry.hpp"
+#include "tracer.hpp"
+
 using namespace std;
 using namespace s9;
 
-#define EPSILON 1e-6
-
-// Option struct
-typedef struct {
-  unsigned int width;
-  unsigned int height;
-  unsigned int num_bounces;
-  unsigned int frame;
-  unsigned int num_rays_per_pixel;
-  float ray_intensity;
-  float near_plane;
-  glm::mat4 perspective;
-  std::string filename;
-} RaytraceOptions;
-
-
-// Basic Ray
-struct Ray {
-
-  Ray(glm::vec3 ogn, glm::vec3 dir) : origin(ogn), direction(dir){ colour = glm::vec3(0,0,0); }
-  Ray() : origin ( glm::vec3(0,0,0)), direction( glm::vec3(0,0,1)) { colour = glm::vec3(0,0,0);}
-
-  glm::vec3 origin;         //Ray origin (can possibly bin this)
-  glm::vec3 direction;      //Ray direction
-  glm::vec3 colour;
-
-};
-
-// Represents a hit on geometry
-typedef struct {
-  float dist;
-  glm::vec3 loc;
-  glm::vec3 normal;
-  glm::vec3 colour;
-}RayHit;
-
-
-// Triangle with stored normal
-typedef struct {
-  glm::vec3 v0,v1,v2;
-  glm::vec3 normal;
-} Triangle;
-
-// Sphere
-
-struct Sphere {
-  Sphere (glm::vec3 c, float r) : centre(c), radius(r) {}
-  glm::vec3 centre;
-  float radius;
-};
-
-
-// MPI Custom Type
-
-typedef struct {
-  float r,g,b;
-  int x,y;
-}MPIPixel;
-
-MPI_Datatype pixelType;
-
 // Naughty Globals ><
 
-std::vector<Sphere> spheres;
 RaytraceOptions options;
 MPI_Status stat;
+Scene scene;
+
+// Pre-define for now - makes the file a bit neater
+void writeBitmap (std::vector< std::vector< glm::vec3 > > &bitmap);
 
 
-// Test against a triangle
+// The server process basically listens for messages
+// and pulls in pixel values. TBF we could actually use
+// the MPI map and fold functions?
 
-int triangle_intersection(const Triangle &triangle, const Ray &ray, float &distance ) {
-  glm::vec3 e1, e2;  //Edge1, Edge2
-  glm::vec3 p, q, t;
-  float det, inv_det, u, v;
-  float b;
- 
-  //Find vectors for two edges sharing V1
-  e1 = triangle.v1 - triangle.v0;
-  e2 = triangle.v2 - triangle.v0;
+void runServerProcess(int num_mpi_procs) {
 
-  //Begin calculating determinant - also used to calculate u parameter
-  p = glm::cross(ray.direction, e2);
+  std::vector< std::vector< glm::vec3 > > bitmap;
 
-  //if determinant is near zero, ray lies in plane of triangle
-  det = glm::dot(e1, p);
-
-  //NOT CULLING
-  if(det > -EPSILON && det < EPSILON) return 0;
-  inv_det = 1.f / det;
- 
-  //calculate distance from V0 to ray origin
-  t = ray.origin - triangle.v0;
- 
-  //Calculate u parameter and test bound
-  u = glm::dot(t, p) * inv_det;
-
-  //The intersection lies outside of the triangle
-  if(u < 0.f || u > 1.f) return 0;
- 
-  //Prepare to test v parameter
-  q = glm::cross(t,e1);
- 
-  //Calculate V parameter and test bound
-  v = glm::dot(ray.direction, q) * inv_det;
-  
-  //The intersection lies outside of the triangle
-  if(v < 0.f || u + v  > 1.f) return 0;
- 
-  b = glm::dot(e2, q) * inv_det;
- 
-  if(b > EPSILON) { //ray intersection
-    distance = b;
-    return 1;
-  }
- 
-  // No hit, no win
-  return 0;
-}
-
-// Test against a sphere 5 unit away, of radius 1
-
-bool testSphere (Ray ray, Sphere sphere, RayHit &hit) {
-
-  float l = glm::dot(ray.direction, (ray.origin - sphere.centre));
-  float p = pow(l, 2) - pow(glm::distance(ray.origin, sphere.centre),2) + pow(sphere.radius,2);
-
-  if (p < 0){
-    return false;
-  }
-
-  p = sqrt(p);
-
-  float dist0 = -l - p;
-  float dist1 = -l + p;
-
-  if (abs(dist0 - dist1) < EPSILON){
-    return false;
-  }
-
-  // TODO - This is a bit messy
-  if (dist0 > 0){
-    if (dist1 > 0 && dist1 > dist0){
-      hit.dist = dist0;
-    } else {
-      hit.dist = dist1;
-    }
-
-  } else if (dist1 > 1){
-    hit.dist = dist1;
-  } else {
-    // Both negative - quit out
-    return false;
-  }
-  
-
-  hit.loc = ray.direction * hit.dist + ray.origin;
-
-  hit.normal = glm::normalize( hit.loc - sphere.centre);
-  hit.colour = glm::vec3(0.0,0.0,1.0);
-
-  return true;
-
-}
-
-// Test if the ray hits the ground
-// Since we are operating in eye space we make the ground -1 instead of 0
-
-bool testGround (Ray ray, RayHit &hit) {
-
-  if ( ray.direction.y > 0)
-    return false;
-
-  hit.dist = abs ((ray.origin.y - 1 ) / ray.direction.y);
-  
-  hit.normal.x = 0;
-  hit.normal.y = 1;
-  hit.normal.z = 0;
-
-  hit.loc = ray.direction * hit.dist + ray.origin;
-
-  hit.colour = glm::vec3(0,1,0);
-
-  return true;
-
-}
-
-// Fire a ray from the origin through our vritual screen
-
-Ray fireRay(int x, int y) {
-
-  glm::vec3 origin (0,0.0,0);
-  
-  // Apocrita GCC doesnt like this random stuff :(
-  std::default_random_engine generator;
-  std::uniform_real_distribution<float> distribution(0,1);
-  float rr = distribution(generator) * 2.0f - 1.0f;
-  float noise = raw_noise_2d(rr * 10.0f, rr * 10.0f) * 0.01;
-
-  Ray r;
-
-  glm::vec2 position (float(x) / float(options.width) * 2.0 - 1.0, 
-    float(options.height - y ) / float(options.height) * 2.0 - 1.0);
-
-  position.x += noise;
-  position.y += noise;
-
-  glm::vec3 t3 = glm::normalize(glm::vec3(position, options.near_plane));
-  glm::vec4 t4 = options.perspective * glm::vec4(t3,1.0);
-  r.direction =  glm::normalize(glm::vec3(t4.x, t4.y, t4.z) / t4.w);
-  r.origin = origin;
-  
-  return r;
-}
-
-
-// Test all the geometry to see if we've hit anything and what we've actually hit
-
-bool _sortHits (RayHit i, RayHit j) { return ( i.dist < j.dist); }
-
-bool rayHitTest (Ray &r, RayHit &hit) {
-
-  RayHit ghit;
-  std::vector<RayHit> hits;
-  if (testGround(r, ghit)){
-    hits.push_back(ghit);
-  }
-
-  for (Sphere sphere : spheres){
-    RayHit hit;
-    if ( testSphere(r, sphere, hit) ){
-      hits.push_back(hit);
+  // Set the background to black
+  for (int i = 0; i < options.height; ++i){
+    bitmap.push_back( std::vector< glm::vec3 >() );
+    for (int j = 0; j < options.width; ++j){
+      bitmap[i].push_back( glm::vec3(0,0,0) );
     }
   }
 
-  // Arrange hits in order of distance - lowest first
-  if (hits.size() > 0){
+  // Now listen to the clients and fill our pixel buffer
 
-    std::sort (hits.begin(), hits.end(), _sortHits);
-    hit.loc = hits[0].loc;
-    hit.dist = hits[0].dist;
-    hit.normal = hits[0].normal;
-    hit.colour = hits[0].colour;
+  long int pixel_count = 0;
 
-    return true;
+  // TODO - This -3 is a bug. Despite checking for divisions with
+  // remainders in the main function, it still fails. V odd!
+  while (pixel_count < (options.height * options.width) - 3) {
+    MPI_Status status;
+    int source;
+    int tag = 999;
+    MPIPixel pixel;
+
+    for (source = 1; source < num_mpi_procs; source++ ){
+      MPI_Recv(&pixel,1,pixelType,source,tag,MPI_COMM_WORLD,&status);
+      bitmap[pixel.y][pixel.x] = glm::vec3(pixel.r,pixel.g,pixel.b);
+      pixel_count++;
+
+    }
   }
 
-  return false;
+  // We've got all we need so write out 
+  writeBitmap(bitmap);
 
 }
 
+// Run a client process - return the colour data to our server with 
+// the pixel we've coloured in.
 
-// Test to find the angle between our point light source and if its blocked
+void runClientProcess(int offset, int range) {
 
-bool rayLightTest (Ray &r, RayHit &hit) {
+  for (int i=0; i < range; ++i) {
+    int x = (offset + i) % options.width;
+    int y = (offset + i) / options.width;
 
-  glm::vec4 light_pos (0.0f, 3.0f, 3.0f, 1.0f);
-  glm::mat4 idm(1.0f);
+    glm::vec3 colour = fireRays(x,y,
+      options.width, options.height,
+      options.perspective,
+      options.near_plane,
+      options.far_plane,
+      scene,
+      options.num_bounces,
+      options.num_rays_per_pixel);
 
-  idm = glm::rotate( idm, static_cast<float>(options.frame), glm::vec3(0.0f, 1.0f, 0.0f));
+    int dest = 0;
+    int tag = 999;
 
-  light_pos = light_pos * idm;
+    MPIPixel pixel;
+    pixel.x = x;
+    pixel.y = y;
+    pixel.r = colour.x;
+    pixel.g = colour.y;
+    pixel.b = colour.z;
+  
+    MPI_Send(&pixel,1,pixelType,dest,tag,MPI_COMM_WORLD);
 
-  // Move slightly off the origin along the normal
-  Ray ray;
-  ray.origin = hit.loc + (hit.normal * 0.001f);
-  ray.direction = glm::normalize( glm::vec3(light_pos.x, light_pos.y, light_pos.z) - ray.origin);
-  RayHit temp_hit;
+  }
 
-  return (!rayHitTest(ray,temp_hit));
-   
-}
-
-
-// fireRaysMPI - We could probably integrate this into fireRay
-
-glm::vec3 fireRaysMPI(int x, int y) {
-
-  //std::default_random_engine generator;
-  //std::uniform_real_distribution<float> distribution(0,1);
- 
-  glm::vec3 colour(0,0,0);
-
-  for (int i=0; i < options.num_rays_per_pixel; ++i){
-    // Create a new ray and away we go
-    Ray r = fireRay(x,y);
-    RayHit hit;
-    if (rayHitTest(r,hit)){
-      if(rayLightTest(r,hit))
-        colour += hit.colour * options.ray_intensity;
-    }
-  } 
-
-  return colour;
 }
 
 
@@ -336,7 +130,7 @@ void parseCommandOptions (int argc, const char * argv[]) {
   };
   int option_index = 0;
 
-  while ((c = getopt_long(argc, (char **)argv, "w:h:f:n:?", long_options, &option_index)) != -1) {
+  while ((c = getopt_long(argc, (char **)argv, "w:h:f:n:b:?", long_options, &option_index)) != -1) {
   	int this_option_optind = optind ? optind : 1;
   	switch (c) {
       case 0 :
@@ -351,6 +145,10 @@ void parseCommandOptions (int argc, const char * argv[]) {
 
       case 'n' :
         options.frame = FromStringS9<unsigned int>( std::string(optarg) );
+        break;
+
+      case 'b' :
+        options.num_bounces = FromStringS9<unsigned int>( std::string(optarg) );
         break;
 
       case 'h' :
@@ -461,94 +259,42 @@ void writeBitmap (std::vector< std::vector< glm::vec3 > > &bitmap) {
 }
 
 
-// The server process basically listens for messages
-// and pulls in pixel values. TBF we could actually use
-// the MPI map and fold functions?
+// Create some test geometry for our scene
+void setScene(){
 
-void runServerProcess(int num_mpi_procs) {
+  // Test Spheres
 
-  std::vector< std::vector< glm::vec3 > > bitmap;
+  Sphere s0(glm::vec3(0.3f, 0.2f, 1.5f), 0.75f);
+  Sphere s1(glm::vec3(1.1f, 1.2f, 4.5f), 0.75f);
+  Sphere s2(glm::vec3(-1.2f, 0.2f, 2.5f), 0.75f);
+  Sphere s3(glm::vec3(0.0f, -0.4f, 3.0f), 1.0f);
 
-  // Set the background to black
-  for (int i = 0; i < options.height; ++i){
-    bitmap.push_back( std::vector< glm::vec3 >() );
-    for (int j = 0; j < options.width; ++j){
-      bitmap[i].push_back( glm::vec3(0,0,0) );
-    }
-  }
+  s0.material.shiny = 1.0;
+  s1.material.shiny = 1.0;
 
-  // Now listen to the clients and fill our pixel buffer
+  s0.material.colour = glm::vec3(0.0f,0.1f,1.0f);
+  s2.material.colour = glm::vec3(0.0f,1.0f,1.0f);
 
-  long int pixel_count = 0;
+  scene.spheres.push_back(s0);
+  scene.spheres.push_back(s1);
+  scene.spheres.push_back(s2);
+  scene.spheres.push_back(s3);
 
-  // TODO - This -3 is a bug. Despite checking for divisions with
-  // remainders in the main function, it still fails. V odd!
-  while (pixel_count < (options.height * options.width) - 3) {
-    MPI_Status status;
-    int source;
-    int tag = 999;
-    MPIPixel pixel;
+  // Lights
 
-    for (source = 1; source < num_mpi_procs; source++ ){
-      MPI_Recv(&pixel,1,pixelType,source,tag,MPI_COMM_WORLD,&status);
-      bitmap[pixel.y][pixel.x] = glm::vec3(pixel.r,pixel.g,pixel.b);
-      pixel_count++;
+  LightPoint l0;
+  l0.pos = glm::vec3(1.0f,5.0f,5.0f);
+  l0.colour = glm::vec3(0.1f,0.1f,0.1f);
+  scene.lights.push_back(l0);
 
-    }
-  }
+  LightPoint l1;
+  l1.pos = glm::vec3(1.0f,0.0f,-1.0f);
+  l1.colour = glm::vec3(0.1f,0.0f,0.0f);
+  scene.lights.push_back(l1);
 
-  // We've got all we need so write out 
-  writeBitmap(bitmap);
 
 }
 
-// Run a client process - return the colour data to our server with 
-// the pixel we've coloured in.
-
-void runClientProcess(int offset, int range) {
-
-  for (int i=0; i < range; ++i) {
-    int x = (offset + i) % options.width;
-    int y = (offset + i) / options.width;
-
-    glm::vec3 colour = fireRaysMPI(x,y);
-
-    int dest = 0;
-    int tag = 999;
-
-    MPIPixel pixel;
-    pixel.x = x;
-    pixel.y = y;
-    pixel.r = colour.x;
-    pixel.g = colour.y;
-    pixel.b = colour.z;
-  
-    MPI_Send(&pixel,1,pixelType,dest,tag,MPI_COMM_WORLD);
-
-  }
-
-}
-
-void rayTraceLoop() {
-
-  std::vector<std::vector< glm::vec3 >> bitmap;
-
-  //std::default_random_engine generator;
-  //std::uniform_real_distribution<float> distribution(0,1);
-  for (int y = 0; y < options.height; ++y){
-    for (int x = 0; x < options.width; ++x){
-      for (int i=0; i < options.num_rays_per_pixel; ++i){
-      // Create a new ray and away we go
-      Ray r = fireRay(x,y);
-      RayHit hit;
-      if (rayHitTest(r,hit)){
-        if(rayLightTest(r,hit))
-          bitmap[y][x] += hit.colour * options.ray_intensity;
-        }
-      }
-    }
-  }
-}
 
 // Our main function - sets up MPI and similar
 
@@ -556,7 +302,6 @@ int main (int argc, const char * argv[]) {
 
   // Naughty! Stripping const which is a tad bad
   MPI_Init(&argc, const_cast<char***>(&argv));
-
 
   int numprocs;
   int myid;
@@ -574,16 +319,19 @@ int main (int argc, const char * argv[]) {
   options.width = 320;
   options.height = 240;
   options.num_bounces = 3;
-  options.num_rays_per_pixel = 5;
+  options.num_rays_per_pixel = 1;
   options.near_plane = 0.1f;
-  options.ray_intensity = 0.1;
+  options.far_plane = 100.0f;
   options.filename = "teapot.obj";
 
   parseCommandOptions(argc,argv);
 
   std::cout << "Rendering size " << options.width << ", " << options.height <<  " for file: " << options.filename << std::endl;
 
-  options.perspective = glm::perspective(48.0f, static_cast<float>(options.width) / static_cast<float>(options.height), options.near_plane, 10.f);
+  options.perspective = glm::perspective(35.0f, static_cast<float>(options.width) / static_cast<float>(options.height), 
+    options.near_plane, options.far_plane);
+
+  setScene();
 
   // Setup MPI Type
   // Setup description of the 3 MPI_FLOAT fields x, y, z,
@@ -603,14 +351,6 @@ int main (int argc, const char * argv[]) {
 
   MPI_Type_struct(2, blockcounts, offsets, oldtypes, &pixelType); 
   MPI_Type_commit(&pixelType); 
-
-  // Load Geometry
-
-  Sphere s0(glm::vec3(0.0, 0.0, 2.0), 0.5);
-  Sphere s1(glm::vec3(1.5, 0.1, 2.0), 0.5);
-
-  spheres.push_back(s0);
-  spheres.push_back(s1);
 
   // Make some decisions about client and server processes
 
@@ -633,7 +373,6 @@ int main (int argc, const char * argv[]) {
     }
   }
 
-  
   MPI_Finalize();
 
 }
