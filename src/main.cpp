@@ -20,16 +20,18 @@
 #include <string_utils.hpp>
 
 #include <random>
-
+#include <pthread.h>
 #include <simplex.hpp>
 
 #include <mpi.h>
 
 #include <X11/Xlib.h>
+#include <X11/Xutil.h>
 
 #include "main.hpp"
 #include "geometry.hpp"
 #include "tracer.hpp"
+
 
 using namespace std;
 using namespace s9;
@@ -40,9 +42,14 @@ RaytraceOptions options;
 MPI_Status stat;
 Scene scene;
 
+// X Display stuff
 Display *display;
 Window window;
 int xid;
+GC gc;
+bool window_running = false;
+XImage* render_image;
+char* render_image_data; // sadly we need another buffer ><
 
 
 // Pre-define for now - makes the file a bit neater
@@ -79,56 +86,30 @@ void runServerProcess(int num_mpi_procs) {
 
     for (source = 1; source < num_mpi_procs; source++ ){
       MPI_Recv(&pixel,1,pixelType,source,tag,MPI_COMM_WORLD,&status);
+
+      unsigned long int colour;
+      colour = static_cast<unsigned long> (255 * pixel.r) << 16 |
+        static_cast<char> (255 * pixel.g) << 8 |
+        static_cast<char> (255 * pixel.b);
+
+      if (options.live){
+        XPutPixel(render_image, pixel.x, pixel.y, colour);
+      }
+
       bitmap[pixel.y][pixel.x] = glm::vec3(pixel.r,pixel.g,pixel.b);
       pixel_count++;
 
     }
+    // XPutImage seems to crash if put inside the loop :S
+    XPutImage(display, window, gc, render_image, 0, 0, 0, 0, options.width, options.height);
+
   }
-
-
 
   // We've got all we need so write out 
-    writeBitmap(bitmap);
+  writeBitmap(bitmap);
 
 }
 
-void runServerProcessLive (int num_mpi_procs) {
-  XEvent e;
-
-  std::vector< std::vector< glm::vec3 > > bitmap;
-   // Set the background to black
-  for (int i = 0; i < options.height; ++i){
-    bitmap.push_back( std::vector< glm::vec3 >() );
-    for (int j = 0; j < options.width; ++j){
-      bitmap[i].push_back( glm::vec3(0,0,0) );
-    }
-  }
-
-  long int pixel_count = 0;
-
-  MPI_Status status;
-  int source;
-  int tag = 999;
-  MPIPixel pixel;
-
-  while (1) {
-    XNextEvent(display, &e);
-    if (e.type == Expose) {
-       XFillRectangle(display, window, DefaultGC(display, xid), 20, 20, 10, 10);
-    }
-
-   if (e.type == KeyPress)
-     break;
-
-    if (pixel_count < (options.height * options.width) - 3) {
-      for (source = 1; source < num_mpi_procs; source++ ){
-        MPI_Recv(&pixel,1,pixelType,source,tag,MPI_COMM_WORLD,&status);
-        bitmap[pixel.y][pixel.x] = glm::vec3(pixel.r,pixel.g,pixel.b);
-        pixel_count++;
-      }
-    }
-  }
-}
 
 // Run a client process - return the colour data to our server with 
 // the pixel we've coloured in.
@@ -353,9 +334,29 @@ void setScene(){
   scene.lights.push_back(l2);
 }
 
+void* windowThread(void* id) {
+  XEvent e;
+  while (1) {
+    XNextEvent(display, &e);
+    if (e.type == Expose) {
+
+    }
+   
+    if (e.type == KeyPress)
+      break;
+  }
+    
+  XCloseDisplay(display);
+}
+
+
 void createWindow() {
-  
+
   std::cout << "Creating live view window..." << std::endl;
+
+  // Allocate XImage Buffer
+
+  XInitThreads();
 
   display = XOpenDisplay(NULL);
   if (display == NULL) {
@@ -363,10 +364,37 @@ void createWindow() {
   }
 
   xid = DefaultScreen(display);
+
   window = XCreateSimpleWindow(display, RootWindow(display, xid), 10, 10, options.width, options.height, 1,
                          BlackPixel(display, xid), WhitePixel(display, xid));
+
+  XGCValues values;
+  /* which values in 'values' to check when creating the GC. */
+
+  values.cap_style = CapButt;
+  values.join_style = JoinBevel;
+
+  unsigned long valuemask = GCCapStyle | GCJoinStyle;
+  
+  gc = XCreateGC(display,window,valuemask, &values);
+  
+  int depth = DefaultDepth(display, DefaultScreen(display));
+
   XSelectInput(display, window, ExposureMask | KeyPressMask);
   XMapWindow(display, window);
+
+  Visual *visual=DefaultVisual(display, 0);
+
+  render_image_data = new char[ 4 * options.width * options.height];
+
+  render_image = XCreateImage(display, visual, depth, ZPixmap, 0, render_image_data,options.width,options.height, 32,0);
+
+  pthread_t thread;
+  int rc = pthread_create(&thread, NULL, windowThread,nullptr);
+  if(rc){
+    std::cout<< "ERROR; return code from pthread_create() is " << rc << std::endl;
+  }
+  window_running = true;
 }
 
 
@@ -436,13 +464,9 @@ int main (int argc, const char * argv[]) {
       // Main process - create our window
       if (options.live){
         createWindow();
-        runServerProcessLive(numprocs);
-      } else {
-        runServerProcess(numprocs);
-      }
-
-      if (options.live)
-        XCloseDisplay(display);
+      } 
+      
+      runServerProcess(numprocs);
 
     } else {
       // Divide up our image amongst the processes
@@ -461,5 +485,12 @@ int main (int argc, const char * argv[]) {
 
   MPI_Finalize();
 
+  std::cout << "Rendered all pixels." << std::endl;
+
+  if (options.live){
+    while(window_running){
+
+    }
+  }
 
 }
