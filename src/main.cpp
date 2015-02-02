@@ -41,6 +41,7 @@ using namespace s9;
 RaytraceOptions options;
 MPI_Status stat;
 Scene scene;
+int mpi_item_buffer = 100; // Number of Pixels to send in one go
 
 // X Display stuff
 Display *display;
@@ -78,27 +79,35 @@ void runServerProcess(int num_mpi_procs) {
 
   // TODO - This -3 is a bug. Despite checking for divisions with
   // remainders in the main function, it still fails. V odd!
-  while (pixel_count < (options.height * options.width) - 3) {
+  while (pixel_count < (options.height * options.width)) {
     MPI_Status status;
     int source;
     int tag = 999;
-    MPIPixel pixel;
+    MPIPixel pixels[mpi_item_buffer];
 
     for (source = 1; source < num_mpi_procs; source++ ){
-      MPI_Recv(&pixel,1,pixelType,source,tag,MPI_COMM_WORLD,&status);
+      MPI_Recv(&pixels,mpi_item_buffer,pixelType,source,tag,MPI_COMM_WORLD,&status);
 
-      unsigned long int colour;
-      colour = static_cast<unsigned long> (255 * pixel.r) << 16 |
-        static_cast<char> (255 * pixel.g) << 8 |
-        static_cast<char> (255 * pixel.b);
+      for (int i = 0; i < mpi_item_buffer; ++i){
 
-      if (options.live){
-        XPutPixel(render_image, pixel.x, pixel.y, colour);
+        MPIPixel pixel = pixels[i];
+        // Watch out for padding pixels
+        if (!(pixel.x == -1 && pixel.y == -1)){
+          unsigned long int colour;
+          colour = static_cast<unsigned long> (255 * pixel.r) << 16 |
+          static_cast<char> (255 * pixel.g) << 8 |
+          static_cast<char> (255 * pixel.b);
+
+          if (options.live){
+            XPutPixel(render_image, pixel.x, pixel.y, colour);
+          }
+
+          bitmap[pixel.y][pixel.x] = glm::vec3(pixel.r,pixel.g,pixel.b);
+          pixel_count++;
+        } 
+
       }
-
-      bitmap[pixel.y][pixel.x] = glm::vec3(pixel.r,pixel.g,pixel.b);
-      pixel_count++;
-
+  
     }
     // XPutImage seems to crash if put inside the loop :S
     XPutImage(display, window, gc, render_image, 0, 0, 0, 0, options.width, options.height);
@@ -114,9 +123,11 @@ void runServerProcess(int num_mpi_procs) {
 // Run a client process - return the colour data to our server with 
 // the pixel we've coloured in.
 
-void runClientProcess(int offset, int range) {
+void runClientProcess(long int offset, long int range) {
 
-  for (int i=0; i < range; ++i) {
+  std::vector<MPIPixel> pixel_buffer;
+    
+  for (long int i=0; i < range; ++i) {
     int x = (offset + i) % options.width;
     int y = (offset + i) / options.width;
 
@@ -139,9 +150,23 @@ void runClientProcess(int offset, int range) {
     pixel.g = colour.y;
     pixel.b = colour.z;
   
-    MPI_Send(&pixel,1,pixelType,dest,tag,MPI_COMM_WORLD);
+    pixel_buffer.push_back(pixel);
 
-  }
+    if (pixel_buffer.size() == mpi_item_buffer || i+1 == range){
+      // Pad out the data if needed
+      
+      while (pixel_buffer.size() < mpi_item_buffer){
+        MPIPixel padding;
+        padding.x = -1;
+        padding.y = -1;
+        pixel_buffer.push_back(padding);
+      }
+
+      MPI_Send(&pixel_buffer[0], mpi_item_buffer,pixelType,dest,tag,MPI_COMM_WORLD);
+      pixel_buffer.clear();
+
+    }
+  } 
 
 }
 
@@ -470,7 +495,7 @@ int main (int argc, const char * argv[]) {
 
     } else {
       // Divide up our image amongst the processes
-      int range = options.width * options.height / (numprocs-1);
+      long int range = options.width * options.height / (numprocs-1);
 
       // We may have leftovers though so the last id can deal with these
       if (myid == numprocs-1){
