@@ -41,7 +41,6 @@ using namespace s9;
 RaytraceOptions options;
 MPI_Status stat;
 Scene scene;
-int mpi_item_buffer = 100; // Number of Pixels to send in one go
 
 // X Display stuff
 Display *display;
@@ -83,12 +82,12 @@ void runServerProcess(int num_mpi_procs) {
     MPI_Status status;
     int source;
     int tag = 999;
-    MPIPixel pixels[mpi_item_buffer];
+    MPIPixel pixels[options.mpi_item_buffer];
 
     for (source = 1; source < num_mpi_procs; source++ ){
-      MPI_Recv(&pixels,mpi_item_buffer,pixelType,source,tag,MPI_COMM_WORLD,&status);
+      MPI_Recv(&pixels,options.mpi_item_buffer,pixelType,source,tag,MPI_COMM_WORLD,&status);
 
-      for (int i = 0; i < mpi_item_buffer; ++i){
+      for (int i = 0; i < options.mpi_item_buffer; ++i){
 
         MPIPixel pixel = pixels[i];
         // Watch out for padding pixels
@@ -109,8 +108,10 @@ void runServerProcess(int num_mpi_procs) {
       }
   
     }
-    // XPutImage seems to crash if put inside the loop :S
-    XPutImage(display, window, gc, render_image, 0, 0, 0, 0, options.width, options.height);
+    if (options.live){
+      // XPutImage seems to crash if put inside the loop :S
+      XPutImage(display, window, gc, render_image, 0, 0, 0, 0, options.width, options.height);
+    }
 
   }
 
@@ -152,17 +153,17 @@ void runClientProcess(long int offset, long int range) {
   
     pixel_buffer.push_back(pixel);
 
-    if (pixel_buffer.size() == mpi_item_buffer || i+1 == range){
+    if (pixel_buffer.size() == options.mpi_item_buffer || i+1 == range){
       // Pad out the data if needed
       
-      while (pixel_buffer.size() < mpi_item_buffer){
+      while (pixel_buffer.size() < options.mpi_item_buffer){
         MPIPixel padding;
         padding.x = -1;
         padding.y = -1;
         pixel_buffer.push_back(padding);
       }
 
-      MPI_Send(&pixel_buffer[0], mpi_item_buffer,pixelType,dest,tag,MPI_COMM_WORLD);
+      MPI_Send(&pixel_buffer[0], options.mpi_item_buffer,pixelType,dest,tag,MPI_COMM_WORLD);
       pixel_buffer.clear();
 
     }
@@ -183,7 +184,7 @@ void parseCommandOptions (int argc, const char * argv[]) {
   };
   int option_index = 0;
 
-  while ((c = getopt_long(argc, (char **)argv, "w:h:f:n:b:?x", long_options, &option_index)) != -1) {
+  while ((c = getopt_long(argc, (char **)argv, "w:h:f:n:b:p:?x", long_options, &option_index)) != -1) {
   	int this_option_optind = optind ? optind : 1;
   	switch (c) {
       case 0 :
@@ -210,6 +211,10 @@ void parseCommandOptions (int argc, const char * argv[]) {
 
       case 'h' :
         options.height = FromStringS9<unsigned int>( std::string(optarg) );
+        break;
+
+      case 'p' :
+        options.mpi_item_buffer = FromStringS9<unsigned int>( std::string(optarg) );
         break;
 
       case '?':
@@ -447,9 +452,11 @@ int main (int argc, const char * argv[]) {
   options.width = 320;
   options.height = 240;
   options.num_bounces = 3;
+  options.live = false;
   options.num_rays_per_pixel = 1;
   options.near_plane = 0.1f;
   options.far_plane = 100.0f;
+  options.mpi_item_buffer = 100;
   options.filename = "teapot.obj";
 
   parseCommandOptions(argc,argv);
@@ -504,7 +511,6 @@ int main (int argc, const char * argv[]) {
       } else{
         runClientProcess(range * (myid-1), range);
       }
-
     }
   }
 

@@ -15,6 +15,7 @@ typedef struct {
   bool live;
   glm::mat4 perspective;
   std::string filename;
+  unsigned int mpi_item_buffer;
 } RaytraceOptions;
 
 
