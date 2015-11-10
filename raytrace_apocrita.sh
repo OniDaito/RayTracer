@@ -10,4 +10,5 @@
 #do
 #	mpirun -np 12 ./build/raytracer -w 800 -h 600 -n $i -f frame$i.bmp
 #done
-mpirun -np 4 ./build/raytracer -w 320 -h 240 -n 1 -b 5 -p 200 -f test.bmp
+#mpirun -enable-x -verbose ./build/raytracer -w 320 -h 240 -n 1 -b 5 -p 200 -xmpirun -enable-x -verbose ./build/raytracer -w 320 -h 240 -n 1 -b 5 -p 200 -x
+mpirun -np 5 -verbose ./build/raytracer -w 800 -h 600 -n 1 -b 10 -p 400 -f test.bmp -x
