@@ -19,6 +19,7 @@ typedef struct {
 } RaytraceOptions;
 
 
+#ifdef _USE_MPI
 // MPI Custom Type
 
 typedef struct {
@@ -27,6 +28,6 @@ typedef struct {
 }MPIPixel;
 
 MPI_Datatype pixelType;
-
+#endif
 
 #endif

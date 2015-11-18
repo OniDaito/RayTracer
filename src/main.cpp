@@ -23,7 +23,11 @@
 #include <pthread.h>
 #include <simplex.hpp>
 
+#include <omp.h>
+
+#ifdef _USE_MPI
 #include <mpi.h>
+#endif
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
@@ -39,7 +43,11 @@ using namespace s9;
 // Naughty Globals ><
 
 RaytraceOptions options;
+
+#ifdef _USE_MPI
 MPI_Status stat;
+#endif
+
 Scene scene;
 
 // X Display stuff
@@ -55,6 +63,8 @@ char* render_image_data; // sadly we need another buffer ><
 // Pre-define for now - makes the file a bit neater
 void writeBitmap (std::vector< std::vector< glm::vec3 > > &bitmap);
 
+
+#ifdef _USE_MPI
 
 // The server process basically listens for messages
 // and pulls in pixel values. TBF we could actually use
@@ -168,7 +178,61 @@ void runClientProcess(long int offset, long int range) {
 
     }
   } 
+}
 
+#endif
+
+// OpenMP Version of the same code
+
+void runProcess() {
+   std::vector< std::vector< glm::vec3 > > bitmap;
+
+  // Set the background to black
+  for (int i = 0; i < options.height; ++i){
+    bitmap.push_back( std::vector< glm::vec3 >() );
+    for (int j = 0; j < options.width; ++j){
+      bitmap[i].push_back( glm::vec3(0,0,0) );
+    }
+  }
+  
+  int offset = 0;
+
+  // Main rendering section goes here
+  for (int i = 0; i < options.height; ++i ){
+    for (int j = 0; j < options.width; ++j ) {
+      int x = j;
+      int y = i;
+
+      glm::vec3 ray_colour = fireRays(x,y,
+        options.width, options.height,
+        options.perspective,
+        options.near_plane,
+        options.far_plane,
+        scene,
+        options.num_bounces,
+        options.num_rays_per_pixel);
+
+
+      unsigned long int colour;
+      colour = static_cast<unsigned long> (255 * ray_colour.x) << 16 |
+      static_cast<char> (255 * ray_colour.y) << 8 |
+      static_cast<char> (255 * ray_colour.z);
+
+      if (options.live){
+        XPutPixel(render_image, x, y, colour);
+      }
+
+      bitmap[y][x] = ray_colour;
+    }
+
+    if (options.live){
+    // XPutImage seems to crash if put inside the loop :S
+    XPutImage(display, window, gc, render_image, 0, 0, 0, 0, options.width, options.height);
+    }
+  } 
+  
+  // We've got all we need so write out 
+  writeBitmap(bitmap);
 }
 
 
@@ -433,6 +497,7 @@ void createWindow() {
 
 int main (int argc, const char * argv[]) {
 
+#ifdef _USE_MPI
   // Naughty! Stripping const which is a tad bad
   MPI_Init(&argc, const_cast<char***>(&argv));
 
@@ -447,6 +512,8 @@ int main (int argc, const char * argv[]) {
   MPI_Get_processor_name(name, &length_name);
 
   std::cout << "MPI NumProcs: " << numprocs << ", id: " << myid << ", name: " << name << std::endl;  
+#endif
+
 
   // Defaults
   options.width = 320;
@@ -468,6 +535,7 @@ int main (int argc, const char * argv[]) {
 
   setScene();
 
+#ifdef _USE_MPI
   // Setup MPI Type
   // Setup description of the 3 MPI_FLOAT fields x, y, z,
   MPI_Aint  offsets[2], extent; 
@@ -517,6 +585,14 @@ int main (int argc, const char * argv[]) {
   MPI_Finalize();
 
   std::cout << "Rendered all pixels." << std::endl;
+#else
+  // Main process - create our window
+  if (options.live){
+    createWindow();
+  }
+  runProcess();
+
+#endif
 
   if (options.live){
     while(window_running){
