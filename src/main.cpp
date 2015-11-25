@@ -191,12 +191,18 @@ void runClientProcess(long int offset, long int range) {
 
 #else
 
+int getRandomNumber() {
+  return 4; // Chosen by fair dice roll
+            // Guaranteed to be random
+}
+
 // OpenMP or CILK Version of the same code
 
 void runProcess() {
    std::vector< std::vector< glm::vec3 > > bitmap;
 
-  // Set the background to black
+  // Set the background to black - as black as the bottomless pit that
+  // is the support ticket queue! :P
   for (int i = 0; i < options.height; ++i){
     bitmap.push_back( std::vector< glm::vec3 >() );
     for (int j = 0; j < options.width; ++j){
@@ -228,7 +234,6 @@ void runProcess() {
         scene,
         options.num_bounces,
         options.num_rays_per_pixel);
-
 
       unsigned long int colour;
       colour = static_cast<unsigned long> (255 * ray_colour.x) << 16 |
