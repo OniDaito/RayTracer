@@ -7,6 +7,7 @@
 */
 //__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
 
+
 #include <glm/glm.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
@@ -18,15 +19,25 @@
 #include <stdlib.h> 
 #include <getopt.h>
 #include <string_utils.hpp>
+#include <signal.h>
 
 #include <random>
 #include <pthread.h>
 #include <simplex.hpp>
+#include <iostream>
+#include <fstream>
 
 #include <omp.h>
 
+//#define _USE_CILK
+//#define _USE_MPI
+
 #ifdef _USE_MPI
 #include <mpi.h>
+#endif
+
+#ifdef _USE_CILK
+#include <cilk/cilk.h>
 #endif
 
 #include <X11/Xlib.h>
@@ -86,8 +97,6 @@ void runServerProcess(int num_mpi_procs) {
 
   long int pixel_count = 0;
 
-  // TODO - This -3 is a bug. Despite checking for divisions with
-  // remainders in the main function, it still fails. V odd!
   while (pixel_count < (options.height * options.width)) {
     MPI_Status status;
     int source;
@@ -180,9 +189,9 @@ void runClientProcess(long int offset, long int range) {
   } 
 }
 
-#endif
+#else
 
-// OpenMP Version of the same code
+// OpenMP or CILK Version of the same code
 
 void runProcess() {
    std::vector< std::vector< glm::vec3 > > bitmap;
@@ -198,8 +207,16 @@ void runProcess() {
   int offset = 0;
 
   // Main rendering section goes here
+
   for (int i = 0; i < options.height; ++i ){
-    for (int j = 0; j < options.width; ++j ) {
+#ifdef _USE_CILK
+    cilk for (int j=0; j < options.width; ++j){
+#else
+
+#pragma omp parallel for
+      for (int j = 0; j < options.width; ++j ) {
+#endif
+     
       int x = j;
       int y = i;
 
@@ -235,6 +252,7 @@ void runProcess() {
   writeBitmap(bitmap);
 }
 
+#endif
 
 // Command line opttions jobby
 
@@ -248,7 +266,7 @@ void parseCommandOptions (int argc, const char * argv[]) {
   };
   int option_index = 0;
 
-  while ((c = getopt_long(argc, (char **)argv, "w:h:f:n:b:p:?x", long_options, &option_index)) != -1) {
+  while ((c = getopt_long(argc, (char **)argv, "w:h:f:n:b:s:p:?x", long_options, &option_index)) != -1) {
   	int this_option_optind = optind ? optind : 1;
   	switch (c) {
       case 0 :
@@ -258,7 +276,11 @@ void parseCommandOptions (int argc, const char * argv[]) {
         break;
 
       case 'f' :
-        options.filename = std::string(optarg);
+        options.output_filename = std::string(optarg);
+        break;
+
+      case 's' :
+        options.scene_filename = std::string(optarg);
         break;
 
       case 'n' :
@@ -333,7 +355,7 @@ void writeBitmap (std::vector< std::vector< glm::vec3 > > &bitmap) {
   };
 
 
-  ofstream myfile(options.filename,  ios::out | std::ios::binary);
+  ofstream myfile(options.output_filename,  ios::out | std::ios::binary);
 
   //std::cout << sizeof(bmp24_file_header) << "," << sizeof(bmp24_info_header) << std::endl;
 
@@ -386,9 +408,49 @@ void writeBitmap (std::vector< std::vector< glm::vec3 > > &bitmap) {
 
 
 // Create some test geometry for our scene
+// We read from a file with the following format
+// S x y z radius mr mg mb shiny    // Sphere details
+// L r g b x y z                    // Lights
+
 void setScene(){
 
-  // Test Spheres
+
+  if (options.scene_filename != "none"){
+    
+    ifstream scene_file;
+    scene_file.open(options.scene_filename); 
+    std::string line;
+
+
+    while (std::getline(scene_file,line)){
+
+      std::istringstream iss(line);
+
+      if (StringContains(line,"S")){
+        std::string s;
+        float x,y,z,r, mr, mg, mb, sy;
+        iss >> s >> x >> y >> z >> r >> mr >> mg >> mb >> sy; 
+        Sphere ss(glm::vec3(x,y,z),r);
+        ss.material.shiny = sy;
+        ss.material.colour = glm::vec3(mr,mg,mb);
+        scene.spheres.push_back(ss);
+
+      } else if (StringContains(line,"L")){
+        std::string s;
+        float x,y,z,r,g,b;
+        iss >> s >> r >> g >> b >> x >> y >> z;
+        LightPoint ll;
+        ll.pos = glm::vec3(x,y,z);
+        ll.colour = glm::vec3(r,g,b);
+        scene.lights.push_back(ll);
+      }
+    
+    }
+    return;
+  } 
+
+
+  // Test Spheres and lights for a default scene
 
   Sphere s0(glm::vec3(0.5f, 0.8f, 2.5f), 1.0f);
   Sphere s1(glm::vec3(1.3f, 0.1f, 3.5f), 0.75f);
@@ -413,12 +475,12 @@ void setScene(){
 
   LightPoint l0;
   l0.pos = glm::vec3(1.0f,5.0f,5.0f);
-  l0.colour = glm::vec3(0.1f,0.1f,0.1f);
+  l0.colour = glm::vec3(0.4f,0.4f,0.4f);
   scene.lights.push_back(l0);
 
   LightPoint l1;
   l1.pos = glm::vec3(1.0f,0.0f,-1.0f);
-  l1.colour = glm::vec3(0.1f,0.1f,0.1f);
+  l1.colour = glm::vec3(0.3f,0.3f,0.3f);
   scene.lights.push_back(l1);
 
 
@@ -492,10 +554,19 @@ void createWindow() {
 }
 
 
+// Needs a bit more cleanup
+
+void signal_callback_handler(int signum) {
+  printf("Caught signal %d\n",signum);
+  window_running = false;
+  exit(signum); 
+}
 
 // Our main function - sets up MPI and similar
 
 int main (int argc, const char * argv[]) {
+  // Register signal and signal handler
+  signal(SIGINT, signal_callback_handler);
 
 #ifdef _USE_MPI
   // Naughty! Stripping const which is a tad bad
@@ -515,7 +586,7 @@ int main (int argc, const char * argv[]) {
 #endif
 
 
-  // Defaults
+  // Default options setup
   options.width = 320;
   options.height = 240;
   options.num_bounces = 3;
@@ -524,11 +595,12 @@ int main (int argc, const char * argv[]) {
   options.near_plane = 0.1f;
   options.far_plane = 100.0f;
   options.mpi_item_buffer = 100;
-  options.filename = "teapot.obj";
+  options.output_filename = "test.bmp";
+  options.scene_filename = "none";
 
   parseCommandOptions(argc,argv);
 
-  std::cout << "Rendering size " << options.width << ", " << options.height <<  " for file: " << options.filename << std::endl;
+  std::cout << "Rendering size " << options.width << ", " << options.height <<  " for file: " << options.scene_filename << std::endl;
 
   options.perspective = glm::perspective(35.0f, static_cast<float>(options.width) / static_cast<float>(options.height), 
     options.near_plane, options.far_plane);

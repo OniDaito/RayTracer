@@ -10,4 +10,4 @@
 #do
 #	mpirun -np 12 ./build/raytracer -w 800 -h 600 -n $i -f frame$i.bmp
 #done
-./build/raytracer -w 320 -h 240 -n 1 -b 5 -p 200 -f test.bmp -x
+./build/raytracer -w 320 -h 240 -n 1 -b 5 -p 200 -f test.bmp -s scene.txt -x

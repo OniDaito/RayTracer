@@ -9,6 +9,8 @@ include_directories( "include/glm" )
 include_directories( "include" )
 
 
+# MPI as oppose to openmp
+option(USE_MPI "Use MPI for our parallel bits" YES)
 
 ADD_EXECUTABLE(raytracer src/main.cpp src/obj_loader.cpp src/file.cpp src/simplex.cpp src/physics.cpp src/tracer.cpp)
 # Options 

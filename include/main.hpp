@@ -14,7 +14,8 @@ typedef struct {
   float far_plane;
   bool live;
   glm::mat4 perspective;
-  std::string filename;
+  std::string output_filename;
+  std::string scene_filename;
   unsigned int mpi_item_buffer;
 } RaytraceOptions;
 
