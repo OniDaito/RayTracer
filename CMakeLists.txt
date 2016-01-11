@@ -12,7 +12,7 @@ include_directories( "include" )
 # MPI as oppose to openmp
 option(USE_MPI "Use MPI for our parallel bits" YES)
 
-ADD_EXECUTABLE(raytracer src/main.cpp src/obj_loader.cpp src/file.cpp src/simplex.cpp src/physics.cpp src/tracer.cpp)
+ADD_EXECUTABLE(raytracer src/main.cpp src/obj_loader.cpp src/file.cpp src/scene.cpp src/bmp.cpp src/tracer.cpp)
 # Options 
 #SET(CMAKE_CXX_FLAGS "-include gcc-preinclude.h -std=c++11 -static-libstdc++")
 SET(CMAKE_CXX_FLAGS "-std=c++11 -static-libstdc++")

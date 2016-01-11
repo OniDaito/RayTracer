@@ -1,6 +1,7 @@
 #ifndef __scene_hpp__
 #define __scene_hpp__
 
+#include <memory>
 
 #include "geometry.hpp"
 #include "main.hpp"

@@ -3,13 +3,14 @@
 
 
 #include <vector>
+#include <memory>
+
 
 #include <glm/glm.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 #include <glm/mat4x4.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-
 
 // Basic Ray
 
@@ -119,7 +120,7 @@ public:
 
 protected:
   std::shared_ptr<Material> material_;
-}
+};
 
 // Ground Plane
 class Ground : public Hittable {

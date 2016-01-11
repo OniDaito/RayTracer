@@ -1,6 +1,10 @@
 #ifndef __main_hpp__
 #define __main_hpp__
 
+#include <vector>
+#include <glm/glm.hpp>
+#include <glm/vec3.hpp>
+
 // Easy buffer type for our final result frame
 typedef std::vector< std::vector< glm::vec3 > > RaytraceBitmap;
 

@@ -1,12 +1,19 @@
 /**
-* @brief Test raytracer for Apocrita
-* @file main.cpp
+* @brief Scene creation class
+* @file scene.cpp
 * @author Benjamin Blundell <oni@section9.co.uk>
 * @date 7/01/2015
 *
 */
 
+#include <fstream>
+#include <sstream>
+
+#include "string_utils.hpp"
 #include "scene.hpp"
+
+using namespace std;
+using namespace s9;
 
 // Create some test geometry for our scene
 // We read from a file with the following format
@@ -31,9 +38,9 @@ Scene createScene(RaytraceOptions &options){
         std::string s;
         float x,y,z,r, mr, mg, mb, sy;
         iss >> s >> x >> y >> z >> r >> mr >> mg >> mb >> sy; 
-        std::shared_ptr<Sphere> ss(glm::vec3(x,y,z),r);
-        ss->material.shiny = sy;
-        ss->material.colour = glm::vec3(mr,mg,mb);
+        std::shared_ptr<Sphere> ss(new Sphere(glm::vec3(x,y,z),r));
+        std::shared_ptr<Material> mm (new Material( glm::vec3(mr,mg,mb), sy));
+        ss->material(mm);
         scene.objects.push_back(ss);
 
       } else if (StringContains(line,"L")){
@@ -52,15 +59,15 @@ Scene createScene(RaytraceOptions &options){
 
   // Test Spheres and lights for a default scene
 
-  std::shared_ptr<Sphere> s0(glm::vec3(0.5f, 0.8f, 2.5f), 1.0f);
-  std::shared_ptr<Sphere> s1(glm::vec3(1.3f, 0.1f, 3.5f), 0.75f);
-  std::shared_ptr<Sphere> s2(glm::vec3(-1.2f, 0.2f, 2.5f), 0.75f);
-  std::shared_ptr<Sphere> s3(glm::vec3(0.0f, -0.1f, 2.0f), 0.75f);
+  std::shared_ptr<Sphere> s0( new Sphere(glm::vec3(0.5f, 0.8f, 2.5f), 1.0f));
+  std::shared_ptr<Sphere> s1( new Sphere(glm::vec3(1.3f, 0.1f, 3.5f), 0.75f));
+  std::shared_ptr<Sphere> s2( new Sphere(glm::vec3(-1.2f, 0.2f, 2.5f), 0.75f));
+  std::shared_ptr<Sphere> s3( new Sphere(glm::vec3(0.0f, -0.1f, 2.0f), 0.75f));
 
-  std::shared_ptr<Material> m0(glm::vec3(0.0f,0.0f,1.0f), 0.3);
-  std::shared_ptr<Material> m1(glm::vec3(1.0f,0.0f,0.0f), 0.1);
-  std::shared_ptr<Material> m2(glm::vec3(0.0f,1.0f,1.0f), 0.9);
-  std::shared_ptr<Material> m3(glm::vec3(0.0f,1.0f,1.0f), 0.2);
+  std::shared_ptr<Material> m0(new Material(glm::vec3(0.0f,0.0f,1.0f), 0.3));
+  std::shared_ptr<Material> m1(new Material(glm::vec3(1.0f,0.0f,0.0f), 0.1));
+  std::shared_ptr<Material> m2(new Material(glm::vec3(0.0f,1.0f,1.0f), 0.9));
+  std::shared_ptr<Material> m3(new Material(glm::vec3(0.0f,1.0f,1.0f), 0.2));
 
   s0->material(m0);
   s1->material(m1);
