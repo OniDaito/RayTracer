@@ -7,44 +7,28 @@
 */
 
 #include "tracer.hpp"
-#include "physics.hpp"
+
 
 #include <iostream>
 #include <ostream>
 
-// Cheeky Globals (maybe make into a class?)
-
-int MAX_BOUNCES;
+const float MAX_DISTANCE = 1000000000;
 
 // Pre-define
-glm::vec3 traceRay(Ray ray, const Scene &scene);
+glm::vec3 TraceRay(Ray ray, const Scene &scene);
 
 // Fire a ray from the origin through our vritual screen
-
-Ray generateRay(int x, int y, const int &w, const int &h,
-  const float near_plane, const float far_plane,
-  const glm::mat4 &perspective) {
-
-  glm::vec3 origin (0,0.0,0);
+Ray GenerateRay(int x, int y, const RaytraceOptions &options, const Camera &camera, glm::vec2 offset) {
   
-  // Apocrita GCC doesnt like this random stuff :(
-  //std::default_random_engine generator;
-  //std::uniform_real_distribution<float> distribution(0,1);
-  //float rr = distribution(generator) * 2.0f - 1.0f;
-  //float noise = raw_noise_2d(rr * 10.0f, rr * 10.0f) * 0.01;
-
   Ray r;
 
-  glm::vec2 position (float(x) / float(w) * 2.0f - 1.0f, 
-    float(h - y) / float(h) * 2.0f - 1.0f);
+  glm::vec2 position ( (float(x) + offset.x) / float(options.width) * 2.0f - 1.0f, 
+    (float(h - y) + offset.y) / float(options.height) * 2.0f - 1.0f);
 
-  //position.x += noise;
-  //position.y += noise;
-
-  glm::vec3 t3 = glm::normalize(glm::vec3(position, near_plane));
-  glm::vec4 t4 = perspective * glm::vec4(t3,1.0f);
+  glm::vec3 t3 = glm::normalize(glm::vec3(position, camera.near()));
+  glm::vec4 t4 = camera.perspective() * glm::vec4(t3,1.0f);
   r.direction =  glm::normalize(glm::vec3(t4.x, t4.y, t4.z) / t4.w);
-  r.origin = origin;
+  r.origin = position;
 
   return r;
 }
@@ -52,7 +36,7 @@ Ray generateRay(int x, int y, const int &w, const int &h,
 
 // See if this ray actually intersects with anything in the scene
 // If it does not, alter its colour via the light
-glm::vec3 shadowRay(Ray &r, const RayHit &hit, const Scene &scene){
+glm::vec3 ShadowRay(Ray &r, const Scene &scene){
   
   RayHit hitlight;
   glm::vec3 light_colour(0.0f,0.0f,0.0f);
@@ -65,20 +49,19 @@ glm::vec3 shadowRay(Ray &r, const RayHit &hit, const Scene &scene){
 
     bool occ = false;
  
-    if(testAllSpheres(light_ray,scene.spheres,hitlight)){
-      // This ray is occluded
-      occ = true;      
-    }
-
-    // Triangles
-    for (Triangle t : scene.triangles){
-
+    RayHit hit;
+    for (std::shared_ptr<Hittable> h : scene.objects){
+      if (h->RayIntersection(light_ray, hit)){
+        occ = true
+        break;
+      }
     }
 
     if (!occ){
       light_colour += l.colour;
     }
   }
+
   return light_colour;
 }
 
@@ -95,51 +78,45 @@ glm refractionRay(Ray r, RayHit hit, const Scene &scene){
 }*/
 
 
-// Recursive call for our ray with reflection and refraction and light tests
-// On return we get the computed colour
-glm::vec3 traceRay(Ray ray, const Scene &scene){
+
+// Trace a ray from the ray's origin to either a hit or its escape from the scene, returning a colour
+glm::vec3 TraceRay(Ray ray, const RaytrceOptions &options, const Scene &scene){
 
   glm::vec3 colour(0.0f,0.0f,0.0f);
 
-  if (ray.bounces < MAX_BOUNCES){
-    std::vector<RayHit> hits;
-    RayHit sphere_hit, ground_hit;
+  for (int i = 0; i < options.max_bounces; ++i){
+    
+    // Find the closest thing hit by this ray
+    float closest = MAX_DISTANCE;
+    bool did_hit = false;
+    RayHit hit;
+    
+    std::shared_ptr<Hittable> hit_object;
 
-    // Spheres    
-    if(testAllSpheres(ray,scene.spheres,sphere_hit)){
-      hits.push_back(sphere_hit);
-    } 
-    if (testGround(ray,ground_hit)){
-      hits.push_back(ground_hit);
+    for ( std::shared_ptr<Hittable> h : scene.objects) { 
+      if( h->RayIntersction(ray,hit)) {
+        hit_object = h;
+
+        did_hit = true;
+        if (hit.distance < closest){
+          closest = hit.distance;
+          hit_object = h;
+        }
+      } 
     }
 
-    // Triangles
-    for (Triangle t : scene.triangles){
-      //hits.push_back(hit);
-    }
-    
-    if (hits.size() > 0){
-      std::sort (hits.begin(), hits.end(), sortHits);
+    // If we hit update the colour and go again, else add sky colour and break
+    if (did_hit){
+      std::shared_ptr<Material> mat = hit_object->material();
+      glm::vec3 reflected = glm::reflect(ray.direction, hit.normal);
+      ray.origin = hit.loc;
+      ray.direction = reflected;
+      colour += ShadowRay(ray,scene) * mat->colour() * (1.0f - mat->shiny());
 
-      RayHit hit = hits[0]; // The nearest thing hit
-
-      // Reflection
-      Ray ray_reflect;
-      ray_reflect.direction = glm::reflect(ray.direction,hit.normal);
-      ray_reflect.origin = hit.loc;
-      ray_reflect.bounces += 1;
-
-      colour += traceRay(ray_reflect, scene) * hit.material.shiny;
-
-      //  Light pass
-      colour += shadowRay(ray,hits[0],scene) * hit.material.colour * (1.0f - hit.material.shiny);
-
-    
-      // Refraction
-      // Yet to come
-
-           
-
+    } else {
+      // Add the sky colour and break out of the loop
+      colour += glm::vec3(0.9f, 0.9f, 0.9f);
+      break;
     }
   }
 
@@ -148,22 +125,51 @@ glm::vec3 traceRay(Ray ray, const Scene &scene){
 
 
 // Fire multiple rays for a pixel and combine to make up the final colour
+// take the mean average of all the rays
 
-glm::vec3 fireRays(int x, int y, const int &w, const int &h, 
-  const glm::mat4 &perspective,
-  const float near_plane, const float far_plane,
-  const Scene &scene, 
-  const int max_bounces,
-  const int num_rays_per_pixel ) {
-
-  MAX_BOUNCES = max_bounces;
+glm::vec3 FireRays(int x, int y, const RaytraceOptions &options, const Scene &scene, const Camera &camera) {
 
   glm::vec3 pixel_colour(0.0f,0.0f,0.0f);
 
+  // Apocrita GCC doesnt like this random stuff :(
+  std::default_random_engine generator;
+  std::uniform_real_distribution<float> distribution(0,1);
+  
   for (int i=0; i < num_rays_per_pixel; ++i){
-    Ray ray = generateRay(x,y,w,h,near_plane,far_plane,perspective);
-    pixel_colour += traceRay(ray,scene);
+    // Super sampling the ray
+    float rr = distribution(generator) - 0.5f;
+    glm::vec2 offset(rr,rr);
+
+    Ray ray = GenerateRay(x, y, options, camera, offset);
+    pixel_colour += TraceRay(ray,scene);
   } 
+
+  pixel_colour /= num_rays_per_pixel;
 
   return pixel_colour;
 }
+
+// The Core of the Raytracer for an entire frame
+
+void RaytraceKernel(const RaytraceOptions &options, const Scene &scene, const RayTraceBitmap  &bitmap) {
+
+  #pragma omp parallel for
+  for (int i = 0; i < options.height; ++i ){
+    for (int j = 0; j < options.width; ++j ) {
+     
+      int x = j;
+      int y = i;
+
+      glm::vec3 ray_colour = FireRays(x, y, options, scene, camera);
+
+      unsigned long int colour;
+      colour = static_cast<unsigned long> (255 * ray_colour.x) << 16 |
+      static_cast<char> (255 * ray_colour.y) << 8 |
+      static_cast<char> (255 * ray_colour.z);
+
+      bitmap[y][x] = ray_colour;
+    }
+  } 
+}
+
+

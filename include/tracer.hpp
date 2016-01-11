@@ -12,15 +12,10 @@
 #include <glm/glm.hpp>
 #include <glm/vec3.hpp>
 
+#include "scene.hpp"
 #include "geometry.hpp"
 
-// Quite a lot of parameters on the stack here that 
-// dont change that much. We should change that
-
-glm::vec3 fireRays(int x, int y, const int &w, const int &h, 
-  const glm::mat4 &perspective,
-  const float near_plane, const float far_plane,
-  const Scene &scene, const int max_bounces,
-  const int num_rays_per_pixel );
+// Our Kernel, given a buffer and the options, creates the scene. 
+void RayTraceKernel(const RaytraceBitmap &bitmap, const RaytraceOptions &options, const Scene &scene, const Camera &camera);
 
 #endif

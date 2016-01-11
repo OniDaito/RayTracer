@@ -1,6 +1,8 @@
 #ifndef __main_hpp__
 #define __main_hpp__
 
+// Easy buffer type for our final result frame
+typedef std::vector< std::vector< glm::vec3 > > RaytraceBitmap;
 
 // Option struct
 typedef struct {
@@ -10,25 +12,9 @@ typedef struct {
   unsigned int frame;
   unsigned int num_rays_per_pixel;
   float ray_intensity;
-  float near_plane;
-  float far_plane;
   bool live;
-  glm::mat4 perspective;
   std::string output_filename;
   std::string scene_filename;
-  unsigned int mpi_item_buffer;
 } RaytraceOptions;
-
-
-#ifdef _USE_MPI
-// MPI Custom Type
-
-typedef struct {
-  float r,g,b;
-  int x,y;
-}MPIPixel;
-
-MPI_Datatype pixelType;
-#endif
 
 #endif
