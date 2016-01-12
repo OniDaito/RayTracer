@@ -144,8 +144,10 @@ public:
   bool RayIntersection(const Ray &ray, RayHit &hit); 
 
   glm::vec3 centre() { return centre_; }
+  void  centre(glm::vec3 c) { centre_ = c; }
 
   float radius() { return radius_; }
+  void radius(float r) { radius_ = r; }
 
 protected:
   glm::vec3 centre_;

@@ -70,7 +70,7 @@ void ParseCommandOptions (RaytraceOptions &options, int argc, const char * argv[
         break;
 
       case 'b' :
-        options.num_bounces = FromStringS9<unsigned int>( std::string(optarg) );
+        options.max_bounces = FromStringS9<unsigned int>( std::string(optarg) );
         break;
 
       case 'x' :
@@ -123,7 +123,7 @@ int main (int argc, const char * argv[]) {
 
   options.width = 320;
   options.height = 240;
-  options.num_bounces = 3;
+  options.max_bounces = 3;
   options.live = false;
   options.num_rays_per_pixel = 5;
   options.output_filename = "test.bmp";
@@ -154,7 +154,7 @@ int main (int argc, const char * argv[]) {
 
   // Main process - create our window as well if we want?
   
-  RayTraceKernel(bitmap, options, scene, camera);
+  RaytraceKernel(bitmap, options, scene, camera);
  
   // Write out the bitmap
   

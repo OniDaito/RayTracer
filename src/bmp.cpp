@@ -6,11 +6,14 @@
 *
 */
 
+#include <fstream>
 #include "bmp.hpp"
+
+using namespace std;
 
 // Write the bitmap out as an actual file
 // TODO - replace options with width and height so this is more generic - same with the bitmap type
-void WriteBitmap (RaytraceBitmap &bitmap, RayTraceOptions &options) {
+void WriteBitmap (RaytraceBitmap &bitmap, RaytraceOptions &options) {
 
   // TODO - Proper C++ style casts please!
 

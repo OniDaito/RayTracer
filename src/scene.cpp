@@ -20,7 +20,7 @@ using namespace s9;
 // S x y z radius mr mg mb shiny    // Sphere details
 // L r g b x y z                    // Lights
 
-Scene createScene(RaytraceOptions &options){
+Scene CreateScene(RaytraceOptions &options){
 
   Scene scene;
 
@@ -58,11 +58,12 @@ Scene createScene(RaytraceOptions &options){
   } 
 
   // Test Spheres and lights for a default scene
+  //  Cant have them nearer than the near plane of the camera
 
   std::shared_ptr<Sphere> s0( new Sphere(glm::vec3(0.5f, 0.8f, 2.5f), 1.0f));
-  std::shared_ptr<Sphere> s1( new Sphere(glm::vec3(1.3f, 0.1f, 3.5f), 0.75f));
-  std::shared_ptr<Sphere> s2( new Sphere(glm::vec3(-1.2f, 0.2f, 2.5f), 0.75f));
-  std::shared_ptr<Sphere> s3( new Sphere(glm::vec3(0.0f, -0.1f, 2.0f), 0.75f));
+  std::shared_ptr<Sphere> s1( new Sphere(glm::vec3(2.3f, 1.5f, 2.5f), 0.75f));
+  std::shared_ptr<Sphere> s2( new Sphere(glm::vec3(-3.2f, 0.2f, 2.5f), 0.75f));
+  std::shared_ptr<Sphere> s3( new Sphere(glm::vec3(0.0f, 2.0f, 2.0f), 0.75f));
 
   std::shared_ptr<Material> m0(new Material(glm::vec3(0.0f,0.0f,1.0f), 0.3));
   std::shared_ptr<Material> m1(new Material(glm::vec3(1.0f,0.0f,0.0f), 0.1));

@@ -1,8 +1,9 @@
 
-
 #include "geometry.hpp"
+#include "main.hpp"
 
-bool Sphere::RayIntersection(const Ray &ray, RayHit &rayhit){
+
+bool Sphere::RayIntersection(const Ray &ray, RayHit &hit){
 
   float l = glm::dot(ray.direction, (ray.origin - centre_));
   float p = pow(l, 2) - pow(glm::distance(ray.origin, centre_),2) + pow(radius_,2);
@@ -42,7 +43,7 @@ bool Sphere::RayIntersection(const Ray &ray, RayHit &rayhit){
 
 }
 
-bool Ground::RayIntersection(const Ray &ray, RayHit &rayhit) {
+bool Ground::RayIntersection(const Ray &ray, RayHit &hit) {
 
   if ( ray.direction.y >= 0)
     return false;
