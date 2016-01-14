@@ -60,12 +60,12 @@ Scene CreateScene(RaytraceOptions &options){
   // Test Spheres and lights for a default scene
   //  Cant have them nearer than the near plane of the camera
 
-  std::shared_ptr<Sphere> s0( new Sphere(glm::vec3(0.5f, 0.8f, 2.5f), 1.0f));
-  std::shared_ptr<Sphere> s1( new Sphere(glm::vec3(2.3f, 1.5f, 2.5f), 0.75f));
-  std::shared_ptr<Sphere> s2( new Sphere(glm::vec3(-3.2f, 0.2f, 2.5f), 0.75f));
-  std::shared_ptr<Sphere> s3( new Sphere(glm::vec3(0.0f, 2.0f, 2.0f), 0.75f));
+  std::shared_ptr<Sphere> s0( new Sphere(glm::vec3(0.0f, 0.0f, 0.0f), 1.0f));
+  std::shared_ptr<Sphere> s1( new Sphere(glm::vec3(2.3f, 0.0f, 2.5f), 0.75f));
+  std::shared_ptr<Sphere> s2( new Sphere(glm::vec3(-3.2f, 0.0f, -1.5f), 0.75f));
+  std::shared_ptr<Sphere> s3( new Sphere(glm::vec3(0.0f, 0.0f, 2.0f), 0.75f));
 
-  std::shared_ptr<Material> m0(new Material(glm::vec3(0.0f,0.0f,1.0f), 0.3));
+  std::shared_ptr<Material> m0(new Material(glm::vec3(0.0f,0.0f,1.0f), 0.0));
   std::shared_ptr<Material> m1(new Material(glm::vec3(1.0f,0.0f,0.0f), 0.1));
   std::shared_ptr<Material> m2(new Material(glm::vec3(0.0f,1.0f,1.0f), 0.9));
   std::shared_ptr<Material> m3(new Material(glm::vec3(0.0f,1.0f,1.0f), 0.2));
@@ -78,13 +78,13 @@ Scene CreateScene(RaytraceOptions &options){
   scene.objects.push_back(s0);
   scene.objects.push_back(s1);
   scene.objects.push_back(s2);
-  scene.objects.push_back(s3);
+  //scene.objects.push_back(s3);
 
   // Lights
 
   LightPoint l0;
   l0.pos = glm::vec3(1.0f,5.0f,5.0f);
-  l0.colour = glm::vec3(0.4f,0.4f,0.4f);
+  l0.colour = glm::vec3(0.1f,0.1f,0.1f);
   scene.lights.push_back(l0);
 
   LightPoint l1;
@@ -94,8 +94,8 @@ Scene CreateScene(RaytraceOptions &options){
 
 
   LightPoint l2;
-  l1.pos = glm::vec3(-5.0f,5.0f,15.0f);
-  l1.colour = glm::vec3(0.1f,0.0f,0.1f);
+  l2.pos = glm::vec3(-5.0f,5.0f,15.0f);
+  l2.colour = glm::vec3(0.1f,0.0f,0.1f);
   scene.lights.push_back(l2);
 
   return scene;

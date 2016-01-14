@@ -135,7 +135,7 @@ int main (int argc, const char * argv[]) {
 
   // Camera and scene creation
 
-  Camera camera = Camera(glm::vec3(0,0,0), glm::vec3(0,0,5), glm::vec3(0,1,0), options.width, options.height, 55.0f, 0.1f, 100.0f);
+  Camera camera = Camera(glm::vec3(-3.0,1.0,-4.0), glm::vec3(-3.0,1.0,0), glm::vec3(0,1,0), options.width, options.height, 90.0f, 1.0f, 100.0f);
 
   Scene scene = CreateScene(options);
 

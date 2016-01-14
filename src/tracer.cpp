@@ -25,12 +25,21 @@ Ray GenerateRay(int x, int y, const RaytraceOptions &options, Camera &camera, gl
   
   Ray r;
 
-  glm::vec2 position ( (float(x) + offset.x) / float(options.width) * 2.0f - 1.0f, 
-    (float(options.height - y) + offset.y) / float(options.height) * 2.0f - 1.0f);
+  float ffx = tan(camera.fov() / 2.0f);
+  float ratio = camera.width() / camera.height();
+  float ffy = ffx * ratio;
 
-  glm::vec3 t3 = glm::normalize(glm::vec3(position, camera.near()));
-  glm::vec4 t4 = glm::inverse(camera.projection()) * glm::vec4(t3,1.0f);
-  r.direction =  glm::normalize(glm::vec3(t4.x, t4.y, t4.z) / t4.w);
+  glm::vec3 pos_on_near (( (float(x) + offset.x) / float(options.width) * 2.0f - 1.0f) * ffx, 
+    ((float(y) + offset.y) / float(options.height) * 2.0f - 1.0f) * ffy,
+    camera.near());
+ 
+  // I suspect 1.0f for the w homogenous value is correct?
+  glm::vec4 pos_in_homo =  glm::inverse(camera.view()) * glm::inverse(camera.projection()) * glm::vec4(pos_on_near,-1.0f);
+   
+  glm::vec3 pos_in_world  = glm::vec3(pos_in_homo.x, pos_in_homo.y, pos_in_homo.z) /  pos_in_homo.w;
+
+  r.direction = glm::normalize (pos_in_world - camera.position());
+
   r.origin = camera.position();
 
   return r;
@@ -118,7 +127,7 @@ glm::vec3 TraceRay(Ray ray, const RaytraceOptions &options, const Scene &scene){
 
     } else {
       // Add the sky colour and break out of the loop
-      colour += glm::vec3(0.9f, 0.9f, 0.9f);
+      colour += glm::vec3(0.9f, 0.8f, 0.8f);
       break;
     }
   }

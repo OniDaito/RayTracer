@@ -1,7 +1,6 @@
 #ifndef __geometry_hpp__
 #define __geometry_hpp__
 
-
 #include <vector>
 #include <memory>
 
@@ -11,6 +10,8 @@
 #include <glm/vec4.hpp>
 #include <glm/mat4x4.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+
+#include "math_utils.hpp"
 
 // Basic Ray
 
@@ -39,10 +40,12 @@ protected:
 
 
 // A GLM based camera for the shooting of the rays! :)
+// TODO - should we really have width and height? Just needs to be a ratio I think?
+// In addition, the near plane distance and the fov are related so its no wonder we are getting odd results
 class Camera {
 public:
-  Camera(glm::vec3 pos, glm::vec3 look,  glm::vec3 up, uint32_t width, uint32_t height, float fov, float near, float far) 
-    : up_(up), lookat_(look), position_(pos), width_ (width), height_(height), fov_(fov), near_(near)  {
+  Camera(glm::vec3 position, glm::vec3 lookat,  glm::vec3 up, uint32_t width, uint32_t height, float fov, float near, float far) 
+    : up_(up), lookat_(lookat), position_(position), width_ (width), height_(height), fov_(fov), near_(near), far_(far)  {
       Update();      
     }
 
@@ -78,7 +81,7 @@ public:
 
 protected:
   void Update(){ 
-    projection_ = glm::perspective(fov_, static_cast<float>(width_) / static_cast<float>(height_), near_, far_);
+    projection_ = glm::perspectiveFov( fov_ / 2.0f, static_cast<float>(width_),  static_cast<float>(height_), near_, far_);
     view_ = glm::lookAt(position_, lookat_, up_);
   }
 
