@@ -45,20 +45,32 @@ Scene CreateScene(RaytraceOptions &options){
 
       } else if (StringContains(line,"L")){
         std::string s;
-        float x,y,z,r,g,b;
-        iss >> s >> r >> g >> b >> x >> y >> z;
-        LightPoint ll;
-        ll.pos = glm::vec3(x,y,z);
-        ll.colour = glm::vec3(r,g,b);
+        float x,y,z,r,g,b,l;
+        iss >> s >> r >> g >> b >> x >> y >> z >> l;
+        std::shared_ptr<Light> ll ( new Light(glm::vec3(x,y,z), glm::vec3(r,g,b), l));
         scene.lights.push_back(ll);
-      }
-    
+      
+      } else if (StringContains(line,"C")){
+        std::string s;
+        float ex,ey,ez, lx,ly,lz, ux,uy,uz, fov, n,f;
+        int w,h;
+        iss >> s >> ex >> ey >> ez >> lx >> ly >> lz >> ux >> uy >> uz >> w >> h >> fov >> n >> f;
+        
+        scene.camera = std::shared_ptr<Camera> ( new Camera(
+          glm::vec3(ex,ey,ez),
+          glm::vec3(lx,ly,lz),
+          glm::vec3(ux,uy,uz),
+          w,h,fov,n,f       
+        )); 
+
+      } 
     }
+
     return scene;
   } 
 
   // Test Spheres and lights for a default scene
-  //  Cant have them nearer than the near plane of the camera
+  // Cant have them nearer than the near plane of the camera
 
   std::shared_ptr<Sphere> s0( new Sphere(glm::vec3(0.0f, 0.0f, 0.0f), 1.0f));
   std::shared_ptr<Sphere> s1( new Sphere(glm::vec3(2.3f, 0.0f, 2.5f), 0.75f));
@@ -78,25 +90,20 @@ Scene CreateScene(RaytraceOptions &options){
   scene.objects.push_back(s0);
   scene.objects.push_back(s1);
   scene.objects.push_back(s2);
-  //scene.objects.push_back(s3);
+  scene.objects.push_back(s3);
 
   // Lights
-
-  LightPoint l0;
-  l0.pos = glm::vec3(1.0f,5.0f,5.0f);
-  l0.colour = glm::vec3(0.1f,0.1f,0.1f);
+  std::shared_ptr<Light> l0 (new Light( glm::vec3(1.0f,5.0f,5.0f),  glm::vec3(0.1f,0.1f,0.1f), 1.0f) );
   scene.lights.push_back(l0);
 
-  LightPoint l1;
-  l1.pos = glm::vec3(1.0f,0.0f,-1.0f);
-  l1.colour = glm::vec3(0.3f,0.3f,0.3f);
-  scene.lights.push_back(l1);
-
-
-  LightPoint l2;
-  l2.pos = glm::vec3(-5.0f,5.0f,15.0f);
-  l2.colour = glm::vec3(0.1f,0.0f,0.1f);
-  scene.lights.push_back(l2);
+  // Camera
+  
+  scene.camera = std::shared_ptr<Camera> ( new Camera(
+          glm::vec3(0,0,-5.0),
+          glm::vec3(0,0,0),
+          glm::vec3(0,1.0,0),
+          options.width,options.height,90.0f,1.0f,100.f       
+        )); 
 
   return scene;
 }

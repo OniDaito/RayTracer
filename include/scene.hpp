@@ -9,7 +9,8 @@
 // Scene - Collection of all our objects basically
 struct Scene {
   std::vector< std::shared_ptr<Hittable> >  objects;     
-  std::vector<LightPoint> lights;
+  std::vector< std::shared_ptr<Light> > lights;
+  std::shared_ptr<Camera> camera;
 };
 
 Scene CreateScene(RaytraceOptions &options);

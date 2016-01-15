@@ -133,10 +133,6 @@ int main (int argc, const char * argv[]) {
 
   std::cout << "Rendering size " << options.width << ", " << options.height <<  " for file: " << options.scene_filename << std::endl;
 
-  // Camera and scene creation
-
-  Camera camera = Camera(glm::vec3(-3.0,1.0,-4.0), glm::vec3(-3.0,1.0,0), glm::vec3(0,1,0), options.width, options.height, 90.0f, 1.0f, 100.0f);
-
   Scene scene = CreateScene(options);
 
   // Create the main buffer for our frame
@@ -154,7 +150,7 @@ int main (int argc, const char * argv[]) {
 
   // Main process - create our window as well if we want?
   
-  RaytraceKernel(bitmap, options, scene, camera);
+  RaytraceKernel(bitmap, options, scene);
  
   // Write out the bitmap
   

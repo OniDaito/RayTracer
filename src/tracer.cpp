@@ -21,56 +21,56 @@ glm::vec3 TraceRay(Ray ray, const Scene &scene);
 // We need to reverse the projection and such to get the ray into world space where we shall
 // work
 
-Ray GenerateRay(int x, int y, const RaytraceOptions &options, Camera &camera, glm::vec2 offset) {
+Ray GenerateRay(int x, int y, const RaytraceOptions &options, std::shared_ptr<Camera> camera, glm::vec2 offset) {
   
   Ray r;
 
-  float ffx = tan(camera.fov() / 2.0f);
-  float ratio = camera.width() / camera.height();
+  float ffx = tan(camera->fov() / 2.0f);
+  float ratio = camera->width() / camera->height();
   float ffy = ffx * ratio;
 
   glm::vec3 pos_on_near (( (float(x) + offset.x) / float(options.width) * 2.0f - 1.0f) * ffx, 
     ((float(y) + offset.y) / float(options.height) * 2.0f - 1.0f) * ffy,
-    camera.near());
+    camera->near());
  
   // I suspect 1.0f for the w homogenous value is correct?
-  glm::vec4 pos_in_homo =  glm::inverse(camera.view()) * glm::inverse(camera.projection()) * glm::vec4(pos_on_near,-1.0f);
+  glm::vec4 pos_in_homo =  glm::inverse(camera->view()) * glm::inverse(camera->projection()) * glm::vec4(pos_on_near,-1.0f);
    
   glm::vec3 pos_in_world  = glm::vec3(pos_in_homo.x, pos_in_homo.y, pos_in_homo.z) /  pos_in_homo.w;
 
-  r.direction = glm::normalize (pos_in_world - camera.position());
+  r.direction = glm::normalize (pos_in_world - camera->position());
 
-  r.origin = camera.position();
+  r.origin = camera->position();
 
   return r;
 }
 
 
-// See if this ray actually intersects with anything in the scene
-// If it does not, alter its colour via the light
-glm::vec3 ShadowRay(Ray &r, const Scene &scene){
+// See if this ray hits a light and if there is nothing in the way
+
+glm::vec3 ShadowRay(Ray &shadow_ray, const Scene &scene){
   
   RayHit hitlight;
   glm::vec3 light_colour(0.0f,0.0f,0.0f);
 
-  for (LightPoint l : scene.lights){
+  for (std::shared_ptr<Light> l : scene.lights){
 
-    Ray light_ray(r.origin, glm::normalize( l.pos - r.origin));
+    RayHit light_hit;
 
-    light_ray.origin = r.origin + (r.direction * 0.001f);
-
-    bool occ = false;
- 
-    RayHit hit;
-    for (std::shared_ptr<Hittable> h : scene.objects){
-      if (h->RayIntersection(light_ray, hit)){
-        occ = true;
-        break;
+    if (l->RayIntersection(shadow_ray, light_hit)){
+      bool occ = false;
+      
+      RayHit hit;
+      for (std::shared_ptr<Hittable> h : scene.objects){
+        if (h->RayIntersection(shadow_ray, hit)){
+          occ = true;
+          break;
+        }
       }
-    }
 
-    if (!occ){
-      light_colour += l.colour;
+      if (!occ){
+        light_colour += l->colour();
+      }
     }
   }
 
@@ -123,7 +123,15 @@ glm::vec3 TraceRay(Ray ray, const RaytraceOptions &options, const Scene &scene){
       glm::vec3 reflected = glm::reflect(ray.direction, hit.normal);
       ray.origin = hit.loc;
       ray.direction = reflected;
-      colour += ShadowRay(ray,scene) * mat->colour() * (1.0f - mat->shiny());
+
+      // Now we need to check the material and fire off a load of diffuse rays depending on shiny
+      //colour += ShadowRay(ray,scene) * mat->colour() * (1.0f - mat->shiny());
+
+      // A Test Light
+      glm::vec3 lp (1.0f,3.0f,-2.0f);
+      glm::vec3 lc (0.1f, 0.1f, 0.1f);
+      float dd = glm::dot(lp,hit.normal);
+      colour += mat->colour() * lc * glm::abs(dd);
 
     } else {
       // Add the sky colour and break out of the loop
@@ -139,7 +147,7 @@ glm::vec3 TraceRay(Ray ray, const RaytraceOptions &options, const Scene &scene){
 // Fire multiple rays for a pixel and combine to make up the final colour
 // take the mean average of all the rays
 
-glm::vec3 FireRays(int x, int y, const RaytraceOptions &options, const Scene &scene, Camera &camera) {
+glm::vec3 FireRays(int x, int y, const RaytraceOptions &options, const Scene &scene, std::shared_ptr<Camera> camera) {
 
   glm::vec3 pixel_colour(0.0f,0.0f,0.0f);
 
@@ -163,7 +171,7 @@ glm::vec3 FireRays(int x, int y, const RaytraceOptions &options, const Scene &sc
 
 // The Core of the Raytracer for an entire frame
 
-void RaytraceKernel(RaytraceBitmap  &bitmap, const RaytraceOptions &options, const Scene &scene, Camera &camera ) {
+void RaytraceKernel(RaytraceBitmap  &bitmap, const RaytraceOptions &options, const Scene &scene ) {
 
   #pragma omp parallel for
   for (int i = 0; i < options.height; ++i ){
@@ -172,7 +180,7 @@ void RaytraceKernel(RaytraceBitmap  &bitmap, const RaytraceOptions &options, con
       int x = j;
       int y = i;
 
-      glm::vec3 ray_colour = FireRays(x, y, options, scene, camera);
+      glm::vec3 ray_colour = FireRays(x, y, options, scene, scene.camera);
 
       /*unsigned long int colour;
       colour = static_cast<unsigned long> (255 * ray_colour.x) << 16 |

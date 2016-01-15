@@ -113,6 +113,8 @@ struct Triangle {
 };
 
 // Hittable - abstract - mostly used as a generic and to hold a pointer to a material
+// Lights are hittable but dont have a material (maybe they will one day :P)
+
 class Hittable {
 public:
   Hittable () { };  
@@ -157,10 +159,16 @@ protected:
   float radius_;
 };
 
-// Light 
-struct LightPoint {
-  glm::vec3 pos;
-  glm::vec3 colour;
+// Light - rendered as a sphere
+class Light : public Sphere {
+public:
+
+  Light (glm::vec3 pos, glm::vec3 colour, float radius) : Sphere(pos, radius), colour_(colour) { };
+
+  glm::vec3 colour() { return colour_; }
+  
+protected:
+  glm::vec3 colour_;
 };
 
 

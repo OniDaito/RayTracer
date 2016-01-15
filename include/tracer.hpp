@@ -16,6 +16,6 @@
 #include "geometry.hpp"
 
 // Our Kernel, given a buffer and the options, creates the scene. 
-void RaytraceKernel(RaytraceBitmap &bitmap, const RaytraceOptions &options, const Scene &scene, Camera &camera);
+void RaytraceKernel(RaytraceBitmap &bitmap, const RaytraceOptions &options, const Scene &scene);
 
 #endif
