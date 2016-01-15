@@ -83,9 +83,9 @@ void WriteBitmap (RaytraceBitmap &bitmap, RaytraceOptions &options) {
 
     for (int x = 0; x < options.width; ++x){
       glm::vec3 colour = bitmap[y][x];
-      char r = char( floor( colour.x * 255));
+      char b = char( floor( colour.x * 255));
       char g = char( floor( colour.y * 255));
-      char b = char( floor( colour.z * 255));
+      char r = char( floor( colour.z * 255));
       myfile << r << g << b;
     }
     for (int b = 0; b < extra_bytes; ++b){

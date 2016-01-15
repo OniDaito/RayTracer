@@ -129,18 +129,21 @@ glm::vec3 TraceRay(Ray ray, const RaytraceOptions &options, const Scene &scene){
 
       // A Test Light
       glm::vec3 lp (1.0f,3.0f,-2.0f);
-      glm::vec3 lc (0.1f, 0.1f, 0.1f);
-      float dd = glm::dot(lp,hit.normal);
-      colour += mat->colour() * lc * glm::abs(dd);
+      glm::vec3 lc (0.5f, 0.1f, 0.1f);
+      float dd = glm::dot(hit.normal,lp);
+      
+      auto minc = [](float x) { return x < 0.0f ? 0.0f : x; };
+      
+      colour += mat->colour() * lc * minc(dd);
 
     } else {
-      // Add the sky colour and break out of the loop
-      colour += glm::vec3(0.9f, 0.8f, 0.8f);
       break;
     }
   }
-
-  return colour;
+  // Make sure the maximum colour doesnt blow up! :S
+  auto maxc = [] (float x) { return x > 1.0f ? 1.0f : x; };
+  
+  return glm::vec3(maxc(colour.x), maxc(colour.y), maxc(colour.z));
 }
 
 
