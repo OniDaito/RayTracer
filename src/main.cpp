@@ -123,9 +123,9 @@ int main (int argc, const char * argv[]) {
 
   options.width = 320;
   options.height = 240;
-  options.max_bounces = 3;
+  options.max_bounces = 10;
   options.live = false;
-  options.num_rays_per_pixel = 5;
+  options.num_rays_per_pixel = 15;
   options.output_filename = "test.bmp";
   options.scene_filename = "none";
 

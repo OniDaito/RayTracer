@@ -81,6 +81,11 @@ namespace s9 {
     return found != std::string::npos;
   }
 
+  static inline bool StringBeginsWith (const std::string& input, const std::string& contains){
+    size_t found = input.find(contains);
+    return found != std::string::npos && found == 0;
+  }
+
   /**
   * Remove a char from a string - returns a copy
   */

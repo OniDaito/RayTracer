@@ -34,7 +34,7 @@ Scene CreateScene(RaytraceOptions &options){
 
       std::istringstream iss(line);
 
-      if (StringContains(line,"S")){
+      if (StringBeginsWith(line,"S")){
         std::string s;
         float x,y,z,r, mr, mg, mb, sy;
         iss >> s >> x >> y >> z >> r >> mr >> mg >> mb >> sy; 
@@ -43,14 +43,14 @@ Scene CreateScene(RaytraceOptions &options){
         ss->material(mm);
         scene.objects.push_back(ss);
 
-      } else if (StringContains(line,"L")){
+      } else if (StringBeginsWith(line,"L")){
         std::string s;
         float x,y,z,r,g,b,l;
         iss >> s >> r >> g >> b >> x >> y >> z >> l;
         std::shared_ptr<Light> ll ( new Light(glm::vec3(x,y,z), glm::vec3(r,g,b), l));
         scene.lights.push_back(ll);
       
-      } else if (StringContains(line,"C")){
+      } else if (StringBeginsWith(line,"C")){
         std::string s;
         float ex,ey,ez, lx,ly,lz, ux,uy,uz, fov, n,f;
         int w,h;
@@ -61,9 +61,24 @@ Scene CreateScene(RaytraceOptions &options){
           glm::vec3(lx,ly,lz),
           glm::vec3(ux,uy,uz),
           w,h,fov,n,f       
-        )); 
+        ));
+
+        std::cout << "Camera set at " << ex << "," << ey << "," << ez << std::endl; 
+
+      } else if (StringBeginsWith(line,"G")){
+        std::string s;
+        float gy, mr, mg, mb, ms;
+        iss >> s >> gy >> mr >> mg >> mb >> ms;
+        
+        std::shared_ptr<Ground> gg (new Ground(gy));
+
+        std::shared_ptr<Material> mm (new Material( glm::vec3(mr,mg,mb), ms));
+        gg->material(mm);
+
+        scene.objects.push_back(gg);
 
       } 
+ 
     }
 
     return scene;
@@ -72,15 +87,20 @@ Scene CreateScene(RaytraceOptions &options){
   // Test Spheres and lights for a default scene
   // Cant have them nearer than the near plane of the camera
 
-  std::shared_ptr<Sphere> s0( new Sphere(glm::vec3(0.0f, 0.0f, 0.0f), 1.0f));
-  std::shared_ptr<Sphere> s1( new Sphere(glm::vec3(2.3f, 0.0f, 2.5f), 0.75f));
-  std::shared_ptr<Sphere> s2( new Sphere(glm::vec3(-3.2f, 0.0f, -1.5f), 0.75f));
-  std::shared_ptr<Sphere> s3( new Sphere(glm::vec3(0.0f, 0.0f, 2.0f), 0.75f));
+  std::shared_ptr<Sphere> s0( new Sphere(glm::vec3(0.0f, 1.0f, 0.0f), 1.0f));
+  std::shared_ptr<Sphere> s1( new Sphere(glm::vec3(2.3f, 1.0f, 2.5f), 0.75f));
+  std::shared_ptr<Sphere> s2( new Sphere(glm::vec3(-3.2f, 1.0f, -1.5f), 0.75f));
+  std::shared_ptr<Sphere> s3( new Sphere(glm::vec3(0.0f, 1.0f, 2.0f), 0.75f));
 
   std::shared_ptr<Material> m0(new Material(glm::vec3(0.0f,0.0f,1.0f), 0.0));
   std::shared_ptr<Material> m1(new Material(glm::vec3(1.0f,0.0f,0.0f), 0.1));
   std::shared_ptr<Material> m2(new Material(glm::vec3(0.0f,1.0f,1.0f), 0.9));
   std::shared_ptr<Material> m3(new Material(glm::vec3(0.0f,1.0f,1.0f), 0.2));
+  std::shared_ptr<Material> m4(new Material(glm::vec3(0.312f,0.785f,0.123f), 0.2));
+
+
+  std::shared_ptr<Ground> g0(new Ground(0.0f));
+  g0->material(m4);
 
   s0->material(m0);
   s1->material(m1);
@@ -88,20 +108,21 @@ Scene CreateScene(RaytraceOptions &options){
   s3->material(m3);
 
   scene.objects.push_back(s0);
-  scene.objects.push_back(s1);
-  scene.objects.push_back(s2);
-  scene.objects.push_back(s3);
+  //scene.objects.push_back(s1);
+  //scene.objects.push_back(s2);
+  //scene.objects.push_back(s3);
+  scene.objects.push_back(g0);
 
   // Lights
-  std::shared_ptr<Light> l0 (new Light( glm::vec3(1.0f,5.0f,5.0f),  glm::vec3(0.1f,0.1f,0.1f), 1.0f) );
+  std::shared_ptr<Light> l0 (new Light( glm::vec3(0.0f,12.0f,3.0f),  glm::vec3(0.1f,0.1f,0.1f), 5.0f) );
   scene.lights.push_back(l0);
 
   // Camera
   
   scene.camera = std::shared_ptr<Camera> ( new Camera(
-          glm::vec3(0,0,-5.0),
-          glm::vec3(0,0,0),
-          glm::vec3(0,1.0,0),
+          glm::vec3(0.0f,2.0f,-5.0f),
+          glm::vec3(0.0f,0.0f,0.0f),
+          glm::vec3(0.0f,1.0f,0.0f),
           options.width,options.height,90.0f,1.0f,100.f       
         )); 
 

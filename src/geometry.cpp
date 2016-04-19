@@ -45,15 +45,18 @@ bool Sphere::RayIntersection(const Ray &ray, RayHit &hit){
 
 bool Ground::RayIntersection(const Ray &ray, RayHit &hit) {
 
-  if ( ray.direction.y >= 0)
+  if ( ray.direction.y >= 0.0f && height_ <= 0.0f)
+    return false;
+ 
+  if ( ray.direction.y < 0.0f && height_ > 0.0f)
     return false;
 
-  // abs term here was actually causing integer conversion oddly :S
-  hit.dist = ( (ray.origin.y - height_ ) / ray.direction.y);
+  hit.dist =  glm::length( ray.direction * static_cast<float>(fabs(ray.origin.y - height_)));
   
   hit.normal.x = 0.0f;
-  hit.normal.y = 1.0f;
+  hit.normal.y = -ray.direction.y;
   hit.normal.z = 0.0f;
+  glm::normalize(hit.normal);
 
   hit.loc = ray.direction * hit.dist + ray.origin;
   

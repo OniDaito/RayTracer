@@ -130,7 +130,7 @@ protected:
 // Ground Plane
 class Ground : public Hittable {
 public:
-  Ground() { height_ = 0.0f; }
+  Ground(float g = 0.0f) : height_(g) { }
   
   bool RayIntersection(const Ray &ray, RayHit &hit);
 

@@ -8,10 +8,14 @@
 
 #include "tracer.hpp"
 #include "main.hpp"
+#include "string_utils.hpp"
 
 #include <iostream>
 #include <ostream>
 #include <random>
+
+using namespace std;
+using namespace s9;
 
 
 // Pre-define
@@ -42,39 +46,41 @@ Ray GenerateRay(int x, int y, const RaytraceOptions &options, std::shared_ptr<Ca
 
   r.origin = camera->position();
 
+  if (x == 160 && y == 120){
+    cout << r.direction.x << "," <<  r.direction.y << "," << r.direction.z << endl;
+  }
+
   return r;
 }
 
 
-// See if this ray hits a light and if there is nothing in the way
-
-glm::vec3 ShadowRay(Ray &shadow_ray, const Scene &scene){
+// Given our impact point, return a random ray inside the hemisphere - this is for diffuse surfaces
+// Worked out in polar coordinates then converted to cartesian
+glm::vec3 HemisphereDiffuseRay(const glm::vec3 &normal) {
+  std::default_random_engine generator;
+  std::uniform_real_distribution<float> distribution(0.0f,1.0f);
   
-  RayHit hitlight;
-  glm::vec3 light_colour(0.0f,0.0f,0.0f);
+  float z = distribution(generator);
+  float r = sqrt(1.0f - z * z);
+  float phi = 2.0f * PI * distribution(generator);
+  float x = cos(phi) * r;
+  float y = sin(phi) * r;
 
-  for (std::shared_ptr<Light> l : scene.lights){
-
-    RayHit light_hit;
-
-    if (l->RayIntersection(shadow_ray, light_hit)){
-      bool occ = false;
-      
-      RayHit hit;
-      for (std::shared_ptr<Hittable> h : scene.objects){
-        if (h->RayIntersection(shadow_ray, hit)){
-          occ = true;
-          break;
-        }
-      }
-
-      if (!occ){
-        light_colour += l->colour();
-      }
-    }
+  float inv3 = 1.0f / sqrt(3.0f);
+  glm::vec3 major_axis;
+  if (abs(normal.x) < inv3){
+    major_axis = glm::vec3(1.0f,0,0);
+  } else if ( abs(normal.y) < inv3){ 
+    major_axis = glm::vec3(0,1.0f,0);
+  } else {
+    major_axis = glm::vec3(0,0,1.0f);
   }
 
-  return light_colour;
+  glm::vec3 u = glm::normalize(glm::cross(major_axis,normal));
+  glm::vec3 v = glm::cross(normal,u);
+  glm::vec3 w = normal;
+
+  return glm::normalize(u * x + v * y + w * z);
 }
 
 /*
@@ -92,9 +98,13 @@ glm refractionRay(Ray r, RayHit hit, const Scene &scene){
 
 
 // Trace a ray from the ray's origin to either a hit or its escape from the scene, returning a colour
+// Pretty much the meat of the RayTraceKernel
 glm::vec3 TraceRay(Ray ray, const RaytraceOptions &options, const Scene &scene){
 
-  glm::vec3 colour(0.0f,0.0f,0.0f);
+  glm::vec3 accum_colour(1.0f,1.0f,1.0f);
+
+  // Make sure the maximum colour doesnt blow up! :S
+  auto maxc = [] (float x) { return x > 1.0f ? 1.0f : x; };
 
   for (int i = 0; i < options.max_bounces; ++i){
     
@@ -105,6 +115,7 @@ glm::vec3 TraceRay(Ray ray, const RaytraceOptions &options, const Scene &scene){
     
     std::shared_ptr<Hittable> hit_object;
 
+    // Did we hit an object?
     for ( std::shared_ptr<Hittable> h : scene.objects) { 
       if( h->RayIntersection(ray,hit)) {
         hit_object = h;
@@ -117,33 +128,66 @@ glm::vec3 TraceRay(Ray ray, const RaytraceOptions &options, const Scene &scene){
       } 
     }
 
+    // did we hit a light
+      
+    /*RayHit hitlight;
+    std::shared_ptr<Light> light_hit;
+    
+    bool hit_light = false;
+
+    for (std::shared_ptr<Light> l : scene.lights){ 
+
+      if (l->RayIntersection(ray, hitlight)){
+       
+        if (hitlight.dist < closest){
+          // Only set this if the light hit is closer than an object hit
+          hit_light = true;
+          light_hit = l;
+          closest = hitlight.dist;
+        }
+      }
+    }*/
+
     // If we hit update the colour and go again, else add sky colour and break
     if (did_hit){
       std::shared_ptr<Material> mat = hit_object->material();
       glm::vec3 reflected = glm::reflect(ray.direction, hit.normal);
       ray.origin = hit.loc;
+      ray.origin += hit.normal * 0.001f;
       ray.direction = reflected;
 
       // Now we need to check the material and fire off a load of diffuse rays depending on shiny
-      //colour += ShadowRay(ray,scene) * mat->colour() * (1.0f - mat->shiny());
-
-      // A Test Light
-      glm::vec3 lp (1.0f,3.0f,-2.0f);
-      glm::vec3 lc (0.5f, 0.1f, 0.1f);
-      float dd = glm::dot(hit.normal,lp);
-      
-      auto minc = [](float x) { return x < 0.0f ? 0.0f : x; };
-      
-      colour += mat->colour() * lc * minc(dd);
-
-    } else {
+      glm::vec3 diffuse_dir = HemisphereDiffuseRay(hit.normal);
+      //ray.direction = diffuse_dir;
+      accum_colour *= mat->colour();
+    
+    } /*else if (hit_light){
+        cout << "hit light " << VecToString(accum_colour) << endl;        
+        accum_colour *= light_hit->colour();
+        return glm::vec3(maxc(accum_colour.x), maxc(accum_colour.y), maxc(accum_colour.z));
+    } */else {
+      // We hit empty space so break and go for the sky colour
       break;
     }
+    
+    // Russian Roulette early culling of rays if they are getting darker and darker
+
+    if (i > 3) {
+      float p = max(accum_colour.x, max(accum_colour.y, accum_colour.z));
+      std::default_random_engine generator;
+      std::uniform_real_distribution<float> distribution(0.0f,1.0f);
+
+      if (  distribution(generator)> p) {
+        accum_colour /= p;
+        break;
+      }        
+    }
   }
-  // Make sure the maximum colour doesnt blow up! :S
-  auto maxc = [] (float x) { return x > 1.0f ? 1.0f : x; };
-  
-  return glm::vec3(maxc(colour.x), maxc(colour.y), maxc(colour.z));
+  // Return the sky colour
+
+  accum_colour *= glm::vec3(0.846f, 0.933f, 0.949f);
+  return glm::vec3(maxc(accum_colour.x), maxc(accum_colour.y), maxc(accum_colour.z));
+
 }
 
 
@@ -156,7 +200,7 @@ glm::vec3 FireRays(int x, int y, const RaytraceOptions &options, const Scene &sc
 
   // Apocrita GCC doesnt like this random stuff :(
   std::default_random_engine generator;
-  std::uniform_real_distribution<float> distribution(0,1);
+  std::uniform_real_distribution<float> distribution(0.0f,1.0f);
   
   for (int i=0; i < options.num_rays_per_pixel; ++i){
     // Super sampling the ray
