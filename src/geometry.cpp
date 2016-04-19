@@ -3,6 +3,8 @@
 #include "main.hpp"
 
 
+// TODO - There seems to be an issue with spheres under 1.0 radius :S
+
 bool Sphere::RayIntersection(const Ray &ray, RayHit &hit){
 
   float l = glm::dot(ray.direction, (ray.origin - centre_));
@@ -21,21 +23,10 @@ bool Sphere::RayIntersection(const Ray &ray, RayHit &hit){
     return false;
   }
 
-  // TODO - This is a bit messy
-  if (dist0 > 0){
-    if (dist1 > 0 && dist1 > dist0){
-      hit.dist = dist0;
-    } else {
-      hit.dist = dist1;
-    }
+  if( dist1 > 0) hit.dist = dist1;
+  if (dist0 < dist1 && dist0 > 0) hit.dist = dist0;
+  else return false;
 
-  } else if (dist1 > 1){
-    hit.dist = dist1;
-  } else {
-    // Both negative - quit out
-    return false;
-  }
-  
   hit.loc = ray.direction * hit.dist + ray.origin;
   hit.normal = glm::normalize( hit.loc - centre_);
 
@@ -51,10 +42,10 @@ bool Ground::RayIntersection(const Ray &ray, RayHit &hit) {
   if ( ray.direction.y < 0.0f && height_ > 0.0f)
     return false;
 
-  hit.dist =  glm::length( ray.direction * static_cast<float>(fabs(ray.origin.y - height_)));
+  hit.dist =  static_cast<float>(fabs(static_cast<float>(fabs(ray.origin.y - height_)) / ray.direction.y));
   
   hit.normal.x = 0.0f;
-  hit.normal.y = -ray.direction.y;
+  hit.normal.y = 1.0f;
   hit.normal.z = 0.0f;
   glm::normalize(hit.normal);
 

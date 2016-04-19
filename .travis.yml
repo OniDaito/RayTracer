@@ -1,0 +1,25 @@
+language: cpp
+compiler: gcc
+sudo: required
+dist: trusty
+
+install:
+- if [ "$CXX" = "g++" ]; then export CXX="g++-4.8" CC="gcc-4.8"; fi
+
+addons:
+  apt:
+    sources:
+      - george-edison55-precise-backports # cmake 3.2.3 / doxygen 1.8.3
+    packages:
+      - cmake
+      - cmake-data
+      - gcc-4.8
+      - g++-4.8
+
+before_script:
+  - mkdir build
+  - cd build
+  - cmake ..
+
+script:
+- cmake --build . --config Release

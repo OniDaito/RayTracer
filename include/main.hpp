@@ -20,8 +20,9 @@ typedef struct {
   unsigned int height;
   unsigned int max_bounces;
   unsigned int frame;
-  unsigned int num_rays_per_pixel;
-  float ray_intensity;
+  unsigned int num_rays_per_pixel;  // How many rays per pixel? Related to ray_intensity
+  unsigned int supersample;         // How many samples per pixel
+  float ray_intensity;              // Usually set to 1.0f. Similar to Gamma. Correct for 10 rays per pixel
   bool live;
   std::string output_filename;
   std::string scene_filename;
