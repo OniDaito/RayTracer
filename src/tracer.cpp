@@ -12,7 +12,7 @@
 
 #include <iostream>
 #include <ostream>
-#include <random>
+#include <cstdlib>
 
 using namespace std;
 using namespace s9;
@@ -53,12 +53,10 @@ Ray GenerateRay(int x, int y, const RaytraceOptions &options, std::shared_ptr<Ca
 // Given our impact point, return a random ray inside the hemisphere - this is for diffuse surfaces
 // Worked out in polar coordinates then converted to cartesian
 glm::vec3 HemisphereDiffuseRay(const glm::vec3 &normal) {
-  std::default_random_engine generator;
-  std::uniform_real_distribution<float> distribution(0.0f,1.0f);
-  
-  float z = distribution(generator);
+
+  float z = static_cast<float>(std::rand()) / RAND_MAX;  
   float r = sqrt(1.0f - z * z);
-  float phi = 2.0f * PI * distribution(generator);
+  float phi = 2.0f * PI * static_cast<double>(std::rand()) / RAND_MAX;
   float x = cos(phi) * r;
   float y = sin(phi) * r;
 
@@ -146,10 +144,10 @@ glm::vec3 TraceRay(Ray ray, const RaytraceOptions &options, const Scene &scene){
     
         // Now we need to check the material and fire off a load of diffuse rays depending on shiny
         glm::vec3 diffuse_dir = HemisphereDiffuseRay(hit.normal);
-        ray.direction = (diffuse_dir * mat->shiny()) + (reflected * (1.0f - mat->shiny()));  
+        ray.direction = (diffuse_dir * (1.0f - mat->shiny())) + (reflected *  mat->shiny()tt  
         ray.direction = glm::normalize(ray.direction);
         //ray.direction = diffuse_dir;
-        ray.direction = reflected;
+        //ray.direction = reflected;
         accum_colour *= mat->colour();
       }
     } else {
@@ -160,10 +158,9 @@ glm::vec3 TraceRay(Ray ray, const RaytraceOptions &options, const Scene &scene){
     // Russian Roulette early culling of rays if they are getting darker and darker
     if (i > 3) {
       float p = max(accum_colour.x, max(accum_colour.y, accum_colour.z));
-      std::default_random_engine generator;
-      std::uniform_real_distribution<float> distribution(0.0f,1.0f);
+      float d = static_cast<float>(std::rand()) / RAND_MAX;
 
-      if (  distribution(generator)> p) {
+      if (d > p) {
         accum_colour /= p;
         break;
       }        
@@ -191,13 +188,11 @@ glm::vec3 FireRays(int x, int y, const RaytraceOptions &options, const Scene &sc
   // Make sure the maximum colour doesnt blow up! :S
 
   // Apocrita GCC doesnt like this random stuff :(
-  std::default_random_engine generator;
-  std::uniform_real_distribution<float> distribution(0.0f,1.0f);
   
   // 4 rays for supersampling
   for (int i=0; i < 4; ++i){
   
-    float rr = distribution(generator) - 0.5f;
+    float rr = (static_cast<float>(std::rand()) / RAND_MAX) - 0.5f;
     glm::vec2 offset(rr,rr);
 
     glm::vec3 pixel_colour_inner(0.0f,0.0f,0.0f);
