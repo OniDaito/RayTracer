@@ -114,11 +114,13 @@ struct Triangle {
 
 // Hittable - abstract - mostly used as a generic and to hold a pointer to a material
 // Lights are hittable but dont have a material (maybe they will one day :P)
+// For now, it sort of makes it a little easier.
 
 class Hittable {
 public:
   Hittable () { };  
   virtual bool RayIntersection(const Ray &ray, RayHit &hit) = 0;
+  virtual bool IsLight() { return false; };
 
   std::shared_ptr<Material> material() { return material_;} ;
   void material(std::shared_ptr<Material> m) { material_ = m;};
@@ -165,6 +167,7 @@ public:
 
   Light (glm::vec3 pos, glm::vec3 colour, float radius) : Sphere(pos, radius), colour_(colour) { };
 
+  bool IsLight() { return true; };
   glm::vec3 colour() { return colour_; }
   
 protected:

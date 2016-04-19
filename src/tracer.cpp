@@ -21,7 +21,7 @@ using namespace s9;
 // Pre-define
 glm::vec3 TraceRay(Ray ray, const Scene &scene);
 
-// Fire a ray from the origin through our vritual screen
+// Fire a ray from the origin through our virtual screen
 // We need to reverse the projection and such to get the ray into world space where we shall
 // work
 
@@ -37,7 +37,7 @@ Ray GenerateRay(int x, int y, const RaytraceOptions &options, std::shared_ptr<Ca
     ((float(y) + offset.y) / float(options.height) * 2.0f - 1.0f) * ffy,
     camera->near());
  
-  // I suspect 1.0f for the w homogenous value is correct?
+  // I suspect -1.0f for the w homogenous value is correct?
   glm::vec4 pos_in_homo =  glm::inverse(camera->view()) * glm::inverse(camera->projection()) * glm::vec4(pos_on_near,-1.0f);
    
   glm::vec3 pos_in_world  = glm::vec3(pos_in_homo.x, pos_in_homo.y, pos_in_homo.z) /  pos_in_homo.w;
@@ -46,11 +46,7 @@ Ray GenerateRay(int x, int y, const RaytraceOptions &options, std::shared_ptr<Ca
 
   r.origin = camera->position();
 
-  if (x == 160 && y == 120){
-    cout << r.direction.x << "," <<  r.direction.y << "," << r.direction.z << endl;
-  }
-
-  return r;
+   return r;
 }
 
 
@@ -103,75 +99,65 @@ glm::vec3 TraceRay(Ray ray, const RaytraceOptions &options, const Scene &scene){
 
   glm::vec3 accum_colour(1.0f,1.0f,1.0f);
 
-  // Make sure the maximum colour doesnt blow up! :S
-  auto maxc = [] (float x) { return x > 1.0f ? 1.0f : x; };
-
   for (int i = 0; i < options.max_bounces; ++i){
     
     // Find the closest thing hit by this ray
     float closest = MAX_DISTANCE;
     bool did_hit = false;
-    RayHit hit;
-    
+    RayHit hit, test_hit;
+     
     std::shared_ptr<Hittable> hit_object;
 
     // Did we hit an object?
     for ( std::shared_ptr<Hittable> h : scene.objects) { 
-      if( h->RayIntersection(ray,hit)) {
-        hit_object = h;
+      if( h->RayIntersection(ray,test_hit)) {
+
         did_hit = true;
 
-        if (hit.dist < closest){
+        if (test_hit.dist < closest){
           closest = hit.dist;
           hit_object = h;
+          hit = test_hit;
         }
       } 
     }
 
-    // did we hit a light
-      
-    /*RayHit hitlight;
-    std::shared_ptr<Light> light_hit;
-    
-    bool hit_light = false;
-
-    for (std::shared_ptr<Light> l : scene.lights){ 
-
-      if (l->RayIntersection(ray, hitlight)){
-       
-        if (hitlight.dist < closest){
-          // Only set this if the light hit is closer than an object hit
-          hit_light = true;
-          light_hit = l;
-          closest = hitlight.dist;
-        }
-      }
-    }*/
 
     // If we hit update the colour and go again, else add sky colour and break
     if (did_hit){
-      std::shared_ptr<Material> mat = hit_object->material();
-      glm::vec3 reflected = glm::reflect(ray.direction, hit.normal);
-      ray.origin = hit.loc;
-      ray.origin += hit.normal * 0.001f;
-      ray.direction = reflected;
 
-      // Now we need to check the material and fire off a load of diffuse rays depending on shiny
-      glm::vec3 diffuse_dir = HemisphereDiffuseRay(hit.normal);
-      //ray.direction = diffuse_dir;
-      accum_colour *= mat->colour();
-    
-    } /*else if (hit_light){
-        cout << "hit light " << VecToString(accum_colour) << endl;        
+      if (hit_object->IsLight()) { 
+        // cout << "hit light " << VecToString(accum_colour) << endl;
+        // Annoyingly, in classic C++ style we now have to cast :S
+         
+        std::shared_ptr<Light> light_hit = std::dynamic_pointer_cast<Light>(hit_object);      
+        // Direct hit on the light
+        if (i==0){
+          glm::vec3 cc = light_hit->colour(); 
+          return cc;
+        }
         accum_colour *= light_hit->colour();
-        return glm::vec3(maxc(accum_colour.x), maxc(accum_colour.y), maxc(accum_colour.z));
-    } */else {
+        return accum_colour; 
+      } else {
+        std::shared_ptr<Material> mat = hit_object->material();
+        glm::vec3 reflected = glm::reflect(ray.direction, hit.normal);
+        ray.origin = hit.loc;
+        ray.origin += hit.normal * 0.001f;
+    
+        // Now we need to check the material and fire off a load of diffuse rays depending on shiny
+        glm::vec3 diffuse_dir = HemisphereDiffuseRay(hit.normal);
+        ray.direction = (diffuse_dir * mat->shiny()) + (reflected * (1.0f - mat->shiny()));  
+        ray.direction = glm::normalize(ray.direction);
+        //ray.direction = diffuse_dir;
+        ray.direction = reflected;
+        accum_colour *= mat->colour();
+      }
+    } else {
       // We hit empty space so break and go for the sky colour
       break;
     }
     
     // Russian Roulette early culling of rays if they are getting darker and darker
-
     if (i > 3) {
       float p = max(accum_colour.x, max(accum_colour.y, accum_colour.z));
       std::default_random_engine generator;
@@ -185,11 +171,15 @@ glm::vec3 TraceRay(Ray ray, const RaytraceOptions &options, const Scene &scene){
   }
   // Return the sky colour
 
-  accum_colour *= glm::vec3(0.846f, 0.933f, 0.949f);
-  return glm::vec3(maxc(accum_colour.x), maxc(accum_colour.y), maxc(accum_colour.z));
+  accum_colour *= scene.sky_colour;
+  
+  return accum_colour;
 
 }
 
+
+inline float  maxc (float x) { return x > 1.0f ? 1.0f : x; }
+glm::vec3 maxv (glm::vec3 v) { return glm::vec3(maxc(v.x), maxc(v.y), maxc(v.z)); }
 
 // Fire multiple rays for a pixel and combine to make up the final colour
 // take the mean average of all the rays
@@ -197,21 +187,32 @@ glm::vec3 TraceRay(Ray ray, const RaytraceOptions &options, const Scene &scene){
 glm::vec3 FireRays(int x, int y, const RaytraceOptions &options, const Scene &scene, std::shared_ptr<Camera> camera) {
 
   glm::vec3 pixel_colour(0.0f,0.0f,0.0f);
+  
+  // Make sure the maximum colour doesnt blow up! :S
 
   // Apocrita GCC doesnt like this random stuff :(
   std::default_random_engine generator;
   std::uniform_real_distribution<float> distribution(0.0f,1.0f);
   
-  for (int i=0; i < options.num_rays_per_pixel; ++i){
-    // Super sampling the ray
+  // 4 rays for supersampling
+  for (int i=0; i < 4; ++i){
+  
     float rr = distribution(generator) - 0.5f;
     glm::vec2 offset(rr,rr);
 
-    Ray ray = GenerateRay(x, y, options, camera, offset);
-    pixel_colour += TraceRay(ray, options, scene);
+    glm::vec3 pixel_colour_inner(0.0f,0.0f,0.0f);
+    
+    for (int j=0; j < options.num_rays_per_pixel; ++j){
+      Ray ray = GenerateRay(x, y, options, camera, offset);
+      pixel_colour_inner += TraceRay(ray, options, scene);
+    }
+  
+    pixel_colour_inner = maxv(pixel_colour_inner);
+    pixel_colour += pixel_colour_inner;
+
   } 
 
-  pixel_colour /= options.num_rays_per_pixel;
+  pixel_colour /= 4;
 
   return pixel_colour;
 }

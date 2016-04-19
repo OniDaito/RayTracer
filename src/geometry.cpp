@@ -54,7 +54,7 @@ bool Ground::RayIntersection(const Ray &ray, RayHit &hit) {
   hit.dist =  glm::length( ray.direction * static_cast<float>(fabs(ray.origin.y - height_)));
   
   hit.normal.x = 0.0f;
-  hit.normal.y = -ray.direction.y;
+  hit.normal.y = 1.0f;
   hit.normal.z = 0.0f;
   glm::normalize(hit.normal);
 
