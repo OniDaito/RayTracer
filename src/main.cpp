@@ -131,6 +131,14 @@ int main (int argc, const char * argv[]) {
 
   ParseCommandOptions(options, argc, argv);
 
+  std::cout << "__________" << std::endl;                      
+  std::cout << "\\______   \\_____  ___.__. ______" << std::endl;
+  std::cout << " |       _/\\__  \\<   |  |/  ___/" << std::endl;
+  std::cout << " |    |   \\ / __ \\\\___  |\\___ \\ " << std::endl;
+  std::cout << " |____|_  /(____  / ____/____  >" << std::endl;
+  std::cout << "        \\/      \\/\\/         \\/ " << std::endl;
+  std::cout << "            Ben's amazing raytracer v1.0" << std::endl << std::endl;
+
   std::cout << "Rendering size " << options.width << ", " << options.height <<  " for file: " << options.scene_filename << std::endl;
 
   Scene scene = CreateScene(options);
@@ -149,9 +157,14 @@ int main (int argc, const char * argv[]) {
   }
 
   // Main process - create our window as well if we want?
-  
+  double time_total = omp_get_wtime();
+  std::cout << "Number of potential OpenMP Threads: " << omp_get_num_procs() << std::endl;
+
   RaytraceKernel(bitmap, options, scene);
- 
+  
+  time_total = omp_get_wtime() - time_total; 
+  std::cout << "Time Total: " << time_total << "(s)" << std::endl;
+
   // Write out the bitmap
   
   WriteBitmap(bitmap, options);

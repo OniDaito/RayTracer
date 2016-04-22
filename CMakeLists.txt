@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.8)
 
-PROJECT(raytracer)
+PROJECT(rays)
 
 # GLM Includes
 include_directories( "include/glm" )
@@ -8,13 +8,15 @@ include_directories( "include/glm" )
 # Basic includes
 include_directories( "include" )
 
+# MPI
+option(USE_MPI "Use MPI for larger parallel sections" NO)
 
-# MPI as oppose to openmp
-option(USE_MPI "Use MPI for our parallel bits" YES)
+# OpenMP
+option(USE_OPENMP "Use OpenMP for parallel sections" YES)
 
-ADD_EXECUTABLE(raytracer src/geometry.cpp src/main.cpp src/obj_loader.cpp src/file.cpp src/scene.cpp src/bmp.cpp src/tracer.cpp)
+ADD_EXECUTABLE(rays src/geometry.cpp src/main.cpp src/obj_loader.cpp src/file.cpp src/scene.cpp src/bmp.cpp src/tracer.cpp)
+
 # Options 
-#SET(CMAKE_CXX_FLAGS "-include gcc-preinclude.h -std=c++11 -static-libstdc++")
 SET(CMAKE_CXX_FLAGS "-std=c++11 -static-libstdc++")
 SET(CMAKE_CXX_FLAGS_DEBUG "-g -std=c++11 -static-libstdc++")
 
@@ -26,8 +28,10 @@ if (USE_MPI)
   find_package(MPI REQUIRED)
   set(CMAKE_SHARED_LINKER_FLAGS ${CMAKE_SHARED_LINKER_FLAGS} ${MPI_LINK_FLAGS})
   include_directories(MPI_INCLUDE_PATH)
-  target_link_libraries(raytracer ${MPI_LIBRARIES} X11) 
-else()
+  target_link_libraries(rays ${MPI_LIBRARIES} X11) 
+endif()
+
+if (USE_OPENMP)
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
-  target_link_libraries(raytracer X11)
+  target_link_libraries(rays X11)
 endif()

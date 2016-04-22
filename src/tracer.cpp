@@ -17,6 +17,14 @@
 using namespace std;
 using namespace s9;
 
+// A set of cached values we might need
+typedef struct {
+  glm::mat4 inv_view_proj;
+  float ffx;
+  float ffy;
+
+}Cache;
+
 
 // Pre-define
 glm::vec3 TraceRay(Ray ray, const Scene &scene);
@@ -25,20 +33,20 @@ glm::vec3 TraceRay(Ray ray, const Scene &scene);
 // We need to reverse the projection and such to get the ray into world space where we shall
 // work
 
-Ray GenerateRay(int x, int y, const RaytraceOptions &options, std::shared_ptr<Camera> camera, glm::vec2 offset) {
+Ray GenerateRay(int x, int y, const RaytraceOptions &options, std::shared_ptr<Camera> camera, glm::vec2 offset, Cache &cache ) {
   
   Ray r;
 
-  float ffx = tan(camera->fov() / 2.0f);
-  float ratio = camera->width() / camera->height();
-  float ffy = ffx * ratio;
+  //float ffx = tan(camera->fov() / 2.0f);
+  //float ratio = camera->width() / camera->height();
+  //float ffy = ffx * ratio;
 
-  glm::vec3 pos_on_near (( (float(x) + offset.x) / float(options.width) * 2.0f - 1.0f) * ffx, 
-    ((float(y) + offset.y) / float(options.height) * 2.0f - 1.0f) * ffy,
+  glm::vec3 pos_on_near (( (float(x) + offset.x) / float(options.width) * 2.0f - 1.0f) * cache.ffx, 
+    ((float(y) + offset.y) / float(options.height) * 2.0f - 1.0f) * cache.ffy,
     camera->near());
  
   // I suspect -1.0f for the w homogenous value is correct?
-  glm::vec4 pos_in_homo =  glm::inverse(camera->view()) * glm::inverse(camera->projection()) * glm::vec4(pos_on_near,-1.0f);
+  glm::vec4 pos_in_homo = cache.inv_view_proj * glm::vec4(pos_on_near,-1.0f);
    
   glm::vec3 pos_in_world  = glm::vec3(pos_in_homo.x, pos_in_homo.y, pos_in_homo.z) /  pos_in_homo.w;
 
@@ -93,7 +101,7 @@ glm refractionRay(Ray r, RayHit hit, const Scene &scene){
 
 // Trace a ray from the ray's origin to either a hit or its escape from the scene, returning a colour
 // Pretty much the meat of the RayTraceKernel
-glm::vec3 TraceRay(Ray ray, const RaytraceOptions &options, const Scene &scene){
+glm::vec3 TraceRay(Ray ray, const RaytraceOptions &options, const Scene &scene, Cache &cache){
 
   glm::vec3 accum_colour(1.0f,1.0f,1.0f);
 
@@ -113,7 +121,7 @@ glm::vec3 TraceRay(Ray ray, const RaytraceOptions &options, const Scene &scene){
         did_hit = true;
 
         if (test_hit.dist < closest){
-          closest = hit.dist;
+          closest = test_hit.dist;
           hit_object = h;
           hit = test_hit;
         }
@@ -125,7 +133,6 @@ glm::vec3 TraceRay(Ray ray, const RaytraceOptions &options, const Scene &scene){
     if (did_hit){
 
       if (hit_object->IsLight()) { 
-        // cout << "hit light " << VecToString(accum_colour) << endl;
         // Annoyingly, in classic C++ style we now have to cast :S
          
         std::shared_ptr<Light> light_hit = std::dynamic_pointer_cast<Light>(hit_object);      
@@ -144,10 +151,8 @@ glm::vec3 TraceRay(Ray ray, const RaytraceOptions &options, const Scene &scene){
     
         // Now we need to check the material and fire off a load of diffuse rays depending on shiny
         glm::vec3 diffuse_dir = HemisphereDiffuseRay(hit.normal);
-        ray.direction = (diffuse_dir * (1.0f - mat->shiny())) + (reflected *  mat->shiny()tt  
+        ray.direction = (diffuse_dir * (1.0f - mat->shiny())) + (reflected *  mat->shiny());  
         ray.direction = glm::normalize(ray.direction);
-        //ray.direction = diffuse_dir;
-        //ray.direction = reflected;
         accum_colour *= mat->colour();
       }
     } else {
@@ -166,7 +171,7 @@ glm::vec3 TraceRay(Ray ray, const RaytraceOptions &options, const Scene &scene){
       }        
     }
   }
-  // Return the sky colour
+  // Return the sky colour - although it may not have hit the sky if its bounced around a lot
 
   accum_colour *= scene.sky_colour;
   
@@ -181,14 +186,13 @@ glm::vec3 maxv (glm::vec3 v) { return glm::vec3(maxc(v.x), maxc(v.y), maxc(v.z))
 // Fire multiple rays for a pixel and combine to make up the final colour
 // take the mean average of all the rays
 
-glm::vec3 FireRays(int x, int y, const RaytraceOptions &options, const Scene &scene, std::shared_ptr<Camera> camera) {
+glm::vec3 FireRays(int x, int y, const RaytraceOptions &options, const Scene &scene, Cache &cache) {
 
+  std::shared_ptr<Camera> camera = scene.camera;
   glm::vec3 pixel_colour(0.0f,0.0f,0.0f);
   
   // Make sure the maximum colour doesnt blow up! :S
 
-  // Apocrita GCC doesnt like this random stuff :(
-  
   // 4 rays for supersampling
   for (int i=0; i < 4; ++i){
   
@@ -198,8 +202,8 @@ glm::vec3 FireRays(int x, int y, const RaytraceOptions &options, const Scene &sc
     glm::vec3 pixel_colour_inner(0.0f,0.0f,0.0f);
     
     for (int j=0; j < options.num_rays_per_pixel; ++j){
-      Ray ray = GenerateRay(x, y, options, camera, offset);
-      pixel_colour_inner += TraceRay(ray, options, scene);
+      Ray ray = GenerateRay(x, y, options, camera, offset, cache);
+      pixel_colour_inner += TraceRay(ray, options, scene, cache);
     }
   
     pixel_colour_inner = maxv(pixel_colour_inner);
@@ -212,9 +216,26 @@ glm::vec3 FireRays(int x, int y, const RaytraceOptions &options, const Scene &sc
   return pixel_colour;
 }
 
+// Create a cache to hopefully speed things up
+
+void CreateCache(const Scene &scene, Cache &cache) {
+
+  float ffx = tan(scene.camera->fov() / 2.0f);
+  float ratio = scene.camera->width() / scene.camera->height();
+  float ffy = ffx * ratio;
+
+  cache.ffx = ffx;
+  cache.ffy = ffy;
+  cache.inv_view_proj = glm::inverse(scene.camera->view()) * glm::inverse(scene.camera->projection());
+}
+
+
 // The Core of the Raytracer for an entire frame
 
 void RaytraceKernel(RaytraceBitmap  &bitmap, const RaytraceOptions &options, const Scene &scene ) {
+
+  Cache cache;
+  CreateCache(scene,cache);
 
   #pragma omp parallel for
   for (int i = 0; i < options.height; ++i ){
@@ -223,7 +244,7 @@ void RaytraceKernel(RaytraceBitmap  &bitmap, const RaytraceOptions &options, con
       int x = j;
       int y = i;
 
-      glm::vec3 ray_colour = FireRays(x, y, options, scene, scene.camera);
+      glm::vec3 ray_colour = FireRays(x, y, options, scene, cache);
 
       /*unsigned long int colour;
       colour = static_cast<unsigned long> (255 * ray_colour.x) << 16 |
