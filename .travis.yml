@@ -15,12 +15,9 @@ addons:
       - cmake-data
       - gcc-4.8
       - g++-4.8
-      - nvidia-cuda-toolkit
 
 before_script:
   - mkdir build
   - cd build
   - cmake ..
 
-script:
-- cmake --build . --config Release
