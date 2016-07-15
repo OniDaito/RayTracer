@@ -109,70 +109,77 @@ glm::vec3 TraceRay(Ray ray, const RaytraceOptions &options, const Scene &scene, 
     
     // Find the closest thing hit by this ray
     float closest = MAX_DISTANCE;
-    bool did_hit = false;
     RayHit hit, test_hit;
      
-    std::shared_ptr<Hittable> hit_object;
+    std::shared_ptr<Material> hit_material = nullptr;
+
+    // lamba to do the setting of the hits
+    auto do_hit = [](RayHit &td, RayHit &h, float &c) { if (td.dist < c) { c = td.dist; h = td; return true;} return false; };
 
     // Did we hit an object?
-    for ( std::shared_ptr<Hittable> h : scene.objects) { 
-      if( h->RayIntersection(ray,test_hit)) {
-
-        did_hit = true;
-
-        if (test_hit.dist < closest){
-          closest = test_hit.dist;
-          hit_object = h;
-          hit = test_hit;
+    // For now we split between sphere and ground but eventually
+    // we will use pointers to RayIntersectFunc
+    for ( std::function<bool(const Ray &ray, RayHit &hit, std::shared_ptr<Material> &m)> rh : scene.intersection_funcs  ) { 
+      std::shared_ptr<Material> hm = nullptr; 
+      if( rh(ray,test_hit,hm)) {
+        if (do_hit(test_hit, hit, closest)){
+          hit_material = hm;
         }
       } 
     }
 
-
-    // If we hit update the colour and go again, else add sky colour and break
-    if (did_hit){
-
-      if (hit_object->IsLight()) { 
-        // Annoyingly, in classic C++ style we now have to cast :S
-         
-        std::shared_ptr<Light> light_hit = std::dynamic_pointer_cast<Light>(hit_object);      
-        // Direct hit on the light
-        if (i==0){
-          glm::vec3 cc = light_hit->colour(); 
-          return cc;
-        }
-        accum_colour *= light_hit->colour();
-        return accum_colour; 
-      } else {
-        std::shared_ptr<Material> mat = hit_object->material();
-        glm::vec3 reflected = glm::reflect(ray.direction, hit.normal);
-        ray.origin = hit.loc;
-        ray.origin += hit.normal * 0.001f;
-    
-        // Now we need to check the material and fire off a load of diffuse rays depending on shiny
-        glm::vec3 diffuse_dir = HemisphereDiffuseRay(hit.normal);
-        ray.direction = (diffuse_dir * (1.0f - mat->shiny())) + (reflected *  mat->shiny());  
-        ray.direction = glm::normalize(ray.direction);
-        accum_colour *= mat->colour();
+    // Test the ground to see if its closer
+    if (scene.ground->RayIntersection(ray, test_hit)){
+      if (do_hit(test_hit, hit, closest)){
+        hit_material = scene.ground->material;
       }
-    } else {
+    }
+
+    // But are the lights any closer?
+
+    std::shared_ptr<Light> light_hit;   
+    bool is_light_hit = false;
+    
+    for ( std::shared_ptr<Light> h : scene.lights) { 
+      if( h->RayIntersection(ray,test_hit)) {
+        is_light_hit = true;
+        if (do_hit(test_hit, hit, closest)){
+          light_hit = h;
+        }
+      } 
+    }
+
+    // If we hit a light we can return early
+    if (light_hit) { 
+      // Direct hit on the light
+      if (i==0){
+        glm::vec3 cc = light_hit->colour; 
+        return cc;
+      }
+      accum_colour *= light_hit->colour;
+      return accum_colour; 
+    }
+
+   
+    // If we hit update the colour and go again, else add sky colour and break
+    // TODO we could move this into a diffuse material func?
+    if (hit_material != nullptr){
+
+      glm::vec3 reflected = glm::reflect(ray.direction, hit.normal);
+      ray.origin = hit.loc;
+      ray.origin += hit.normal * 0.001f;
+    
+      // Now we need to check the material and fire off a load of diffuse rays depending on shiny
+      glm::vec3 diffuse_dir = HemisphereDiffuseRay(hit.normal);
+      ray.direction = (diffuse_dir * (1.0f - hit_material->shiny)) + (reflected *  hit_material->shiny);  
+      ray.direction = glm::normalize(ray.direction);
+      accum_colour *= hit_material->colour;
+    }
+    else {
       // We hit empty space so break and go for the sky colour
       break;
     }
     
-    // Russian Roulette early culling of rays if they are getting darker and darker
-    // Sadly, this leaves a lot of crappy black squares annoyingly and doesnt seem to 
-    // improve performance though in complicated scenes I could see it being handy
-  
-    /*if (i > floor(options.max_bounces / 2)) {
-      float p = max(accum_colour.x, max(accum_colour.y, accum_colour.z));
-      float d = static_cast<float>(std::rand()) / RAND_MAX;
-
-      if (d > p) {
-        accum_colour /= p;
-        break;
-      }        
-    }*/
   }
   // Return the sky colour - although it may not have hit the sky if its bounced around a lot
 

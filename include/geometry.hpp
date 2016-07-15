@@ -4,7 +4,6 @@
 #include <vector>
 #include <memory>
 
-
 #include <glm/glm.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
@@ -26,60 +25,53 @@ struct Ray {
 
 
 // Basic material - shiny phong
-class Material {
-public:
-  Material() {shiny_ = 0.45; colour_ = glm::vec3(1.0,1.0,1.0); }
-  Material (glm::vec3 colour, float shiny) : shiny_(shiny), colour_(colour) {}
-  float shiny() { return shiny_; }
-  glm::vec3 colour() { return colour_; }
-
-protected:
-  float shiny_;
-  glm::vec3 colour_;
+struct Material {
+  Material() {shiny = 0.45; colour = glm::vec3(1.0,1.0,1.0); }
+  Material (glm::vec3 c, float s) : shiny(s), colour(c) {}
+  float shiny;
+  glm::vec3 colour;
 };
 
 
 // A GLM based camera for the shooting of the rays! :)
 // TODO - should we really have width and height? Just needs to be a ratio I think?
 // In addition, the near plane distance and the fov are related so its no wonder we are getting odd results
-class Camera {
-public:
+struct Camera {
   Camera(glm::vec3 position, glm::vec3 lookat,  glm::vec3 up, uint32_t width, uint32_t height, float fov, float near, float far) 
     : up_(up), lookat_(lookat), position_(position), width_ (width), height_(height), fov_(fov), near_(near), far_(far)  {
       Update();      
     }
 
-    glm::vec3 position() { return position_; }
-    void position(glm::vec3 p) {position_ = p; Update(); }
+  glm::vec3 position() { return position_; }
+  void position(glm::vec3 p) {position_ = p; Update(); }
 
-    glm::vec3 lookat() { return lookat_; }
-    void lookat(glm::vec3 l) {lookat_ = l; Update(); }
+  glm::vec3 lookat() { return lookat_; }
+  void lookat(glm::vec3 l) {lookat_ = l; Update(); }
 
-    glm::vec3 up() { return up_; }
-    void up(glm::vec3 u) {up_ = u; Update(); }
+  glm::vec3 up() { return up_; }
+  void up(glm::vec3 u) {up_ = u; Update(); }
 
-    uint32_t width() { return width_; }
-    void width(uint32_t w) { width_ = w; }
+  uint32_t width() { return width_; }
+  void width(uint32_t w) { width_ = w; }
 
-    uint32_t height() { return height_; }
-    void height(uint32_t h) { height_ = h; }
+  uint32_t height() { return height_; }
+  void height(uint32_t h) { height_ = h; }
 
-    glm::mat4 projection() { return projection_; }
-    void projection(glm::mat4 m) { projection_ = m; }
+  glm::mat4 projection() { return projection_; }
+  void projection(glm::mat4 m) { projection_ = m; }
 
-    glm::mat4 view() { return view_; }
-    void view(glm::mat4 m) { view_ = m; }
+  glm::mat4 view() { return view_; }
+  void view(glm::mat4 m) { view_ = m; }
 
-    float near() { return near_; }
-    void near(float n) { near_ = n; }
+  float near() { return near_; }
+  void near(float n) { near_ = n; }
 
-    float far() {return far_; }
-    void far(float f) {far_ = f; }
+  float far() {return far_; }
+  void far(float f) {far_ = f; }
 
-    float fov() { return fov_; }
-    void fov(float f) { fov_ = f; }
+  float fov() { return fov_; }
+  void fov(float f) { fov_ = f; }
 
-protected:
   void Update(){ 
     projection_ = glm::perspectiveFov( fov_ / 2.0f, static_cast<float>(width_),  static_cast<float>(height_), near_, far_);
     view_ = glm::lookAt(position_, lookat_, up_);
@@ -112,66 +104,38 @@ struct Triangle {
   glm::vec3 normal;
 };
 
-// Hittable - abstract - mostly used as a generic and to hold a pointer to a material
-// Lights are hittable but dont have a material (maybe they will one day :P)
-// For now, it sort of makes it a little easier.
-
-class Hittable {
-public:
-  Hittable () { };  
-  virtual bool RayIntersection(const Ray &ray, RayHit &hit) = 0;
-  virtual bool IsLight() { return false; };
-
-  std::shared_ptr<Material> material() { return material_;} ;
-  void material(std::shared_ptr<Material> m) { material_ = m;};
-
-protected:
-  std::shared_ptr<Material> material_;
-};
 
 // Ground Plane
-class Ground : public Hittable {
-public:
-  Ground(float g = 0.0f) : height_(g) { }
+struct Ground {
+  Ground(float g = 0.0f) : height(g) { }
   
   bool RayIntersection(const Ray &ray, RayHit &hit);
 
-  float height() { return height_; }
-protected:
-  
-  float height_;
-
+  float height;
+  std::shared_ptr<Material> material;
 };
 
 // Sphere
-class Sphere : public Hittable {
-public:
-  Sphere (glm::vec3 c, float r) : centre_(c), radius_(r) { }
-  
+struct Sphere {
+  Sphere (glm::vec3 c, float r) : centre(c), radius(r) { }
+
   bool RayIntersection(const Ray &ray, RayHit &hit); 
 
-  glm::vec3 centre() { return centre_; }
-  void  centre(glm::vec3 c) { centre_ = c; }
-
-  float radius() { return radius_; }
-  void radius(float r) { radius_ = r; }
-
-protected:
-  glm::vec3 centre_;
-  float radius_;
+  glm::vec3 centre;
+  float radius;
+  std::shared_ptr<Material> material;
 };
 
 // Light - rendered as a sphere
-class Light : public Sphere {
-public:
+struct Light {
 
-  Light (glm::vec3 pos, glm::vec3 colour, float radius) : Sphere(pos, radius), colour_(colour) { };
+  Light (glm::vec3 p, glm::vec3 c, float r) : pos(p), radius(r), colour(c) { };
 
-  bool IsLight() { return true; };
-  glm::vec3 colour() { return colour_; }
-  
-protected:
-  glm::vec3 colour_;
+  bool RayIntersection(const Ray &ray, RayHit &hit); 
+
+  glm::vec3 colour;
+  glm::vec3 pos;
+  float radius;
 };
 
 

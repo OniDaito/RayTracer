@@ -5,6 +5,10 @@ include(cmake/RaysVersion.cmake)
 include(cmake/RPMPackage.cmake)
 include(cmake/BuildInfo.cmake)
 
+# CUDA details
+find_package(CUDA QUIET REQUIRED)
+option(USE_CUDA "Use CUDA for the raytracing kernel" NO)
+
 # GLM Includes
 include_directories( "include/glm" )
 
@@ -20,13 +24,14 @@ option(USE_MPI "Use MPI for larger parallel sections" NO)
 # OpenMP
 option(USE_OPENMP "Use OpenMP for parallel sections" YES)
 
-ADD_EXECUTABLE(rays src/geometry.cpp src/main.cpp src/obj_loader.cpp src/file.cpp src/scene.cpp src/bmp.cpp src/tracer.cpp)
-
-# Options 
+# Options (gcc mostly) 
 SET(CMAKE_CXX_FLAGS "-std=c++11 -static-libstdc++")
 SET(CMAKE_CXX_FLAGS_DEBUG "-g -std=c++11 -static-libstdc++")
 
-# Require MPI for this project or OpenMP
+SET(CMAKE_CXX_FLAGS_PROFILE "-pg")
+SET(CMAKE_C_FLAGS_PROFILE "-pg")
+
+# Require MPI for this project or OpenMP or CUDA or all
 
 if (USE_MPI)
   SET(CMAKE_C_COMPILER mpicc)
@@ -34,10 +39,18 @@ if (USE_MPI)
   find_package(MPI REQUIRED)
   set(CMAKE_SHARED_LINKER_FLAGS ${CMAKE_SHARED_LINKER_FLAGS} ${MPI_LINK_FLAGS})
   include_directories(MPI_INCLUDE_PATH)
-  target_link_libraries(rays ${MPI_LIBRARIES} X11) 
 endif()
 
 if (USE_OPENMP)
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
-  target_link_libraries(rays X11)
 endif()
+
+if (USE_CUDA)
+  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_CUDA_RAYS")
+  set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -D_FORCE_INLINES -O3 -gencode arch=compute_35,code=sm_35)
+  CUDA_ADD_EXECUTABLE(rays src/main.cpp src/obj_loader.cpp src/file.cpp src/scene.cpp src/bmp.cpp src/tracer.cu)
+else()
+  ADD_EXECUTABLE(rays src/geometry.cpp src/main.cpp src/obj_loader.cpp src/file.cpp src/scene.cpp src/bmp.cpp src/tracer.cpp)
+  target_link_libraries(rays ${MPI_LIBRARIES} X11) 
+endif()
+

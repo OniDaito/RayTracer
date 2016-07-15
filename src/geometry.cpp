@@ -2,13 +2,11 @@
 #include "geometry.hpp"
 #include "main.hpp"
 
+// SphereRayIntersection Test
 
-// TODO - There seems to be an issue with spheres under 1.0 radius :S
-
-bool Sphere::RayIntersection(const Ray &ray, RayHit &hit){
-
-  float l = glm::dot(ray.direction, (ray.origin - centre_));
-  float p = pow(l, 2) - pow(glm::distance(ray.origin, centre_),2) + pow(radius_,2);
+bool SphereRayIntersection(const Ray &ray, RayHit &hit, float radius, glm::vec3 centre) {
+  float l = glm::dot(ray.direction, (ray.origin - centre));
+  float p = pow(l, 2) - pow(glm::distance(ray.origin, centre),2) + pow(radius,2);
 
   if (p < 0){
     return false;
@@ -28,21 +26,32 @@ bool Sphere::RayIntersection(const Ray &ray, RayHit &hit){
   else return false;
 
   hit.loc = ray.direction * hit.dist + ray.origin;
-  hit.normal = glm::normalize( hit.loc - centre_);
+  hit.normal = glm::normalize( hit.loc - centre);
 
   return true;
+ 
+}
 
+
+// TODO - There seems to be an issue with spheres under 1.0 radius :S
+
+bool Sphere::RayIntersection(const Ray &ray, RayHit &hit){
+  return SphereRayIntersection(ray,hit,radius,centre); 
+}
+
+bool Light::RayIntersection(const Ray &ray, RayHit &hit) {
+  return SphereRayIntersection(ray,hit,radius,pos); 
 }
 
 bool Ground::RayIntersection(const Ray &ray, RayHit &hit) {
-
-  if ( ray.direction.y >= 0.0f && height_ <= 0.0f)
+  
+  if ( ray.direction.y >= 0.0f && height <= 0.0f)
     return false;
  
-  if ( ray.direction.y < 0.0f && height_ > 0.0f)
+  if ( ray.direction.y < 0.0f && height > 0.0f)
     return false;
 
-  hit.dist =  static_cast<float>(fabs(static_cast<float>(fabs(ray.origin.y - height_)) / ray.direction.y));
+  hit.dist =  static_cast<float>(fabs(static_cast<float>(fabs(ray.origin.y - height)) / ray.direction.y));
   
   hit.normal.x = 0.0f;
   hit.normal.y = 1.0f;
