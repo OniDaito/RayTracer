@@ -6,7 +6,7 @@ A small raytracer built for fun, learning and profiling
 
 ## Requirements
 
-This program requires a C++ compiler and cmake. The compiler should support OpenMP. gcc/g++ version should be 4.8 or above.
+This program requires a C++ compiler and cmake. The compiler should support OpenMP. gcc/g++ version should be 4.8 or above. A CUDA version will also soon be available.
 
 ## Building
 
