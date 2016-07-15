@@ -19,5 +19,5 @@ addons:
 before_script:
   - mkdir build
   - cd build
-  - cmake ..
 
+# Dont actually build on this branch as travis doesnt play well with cuda
