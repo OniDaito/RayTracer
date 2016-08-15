@@ -20,7 +20,7 @@ __global__ void RenderKernel(float3 *output) {
 
 }
 
-void RaytraceKernelCUDA(RaytraceBitmap  &bitmap, const RaytraceOptions &options, const Scene &scene)  {
+void RaytraceKernelCUDA(RaytraceBitmap &bitmap, const RaytraceOptions &options, const Scene &scene)  {
 
   float3* output_h = new float3[options.width*options.height];  // pointer to memory for image on the host (system RAM)
 	float3* output_d;                                             // pointer to memory for image on the device (GPU VRAM)
@@ -43,8 +43,13 @@ void RaytraceKernelCUDA(RaytraceBitmap  &bitmap, const RaytraceOptions &options,
 	// free CUDA memory
 	cudaFree(output_d);  
 
-	for (int i = 0; i < options.width * options.height; i++) {
-     
+	for (int x = 0; x < options.width; ++x) {
+	  for (int y = 0; y < options.height; ++y) {
+      float3 colour = output_h[ options.width * y  + x * 3] ; 
+      bitmap[y][x][0] = static_cast<unsigned int>(floor(256.0 / colour.x)); 
+      bitmap[y][x][1] = static_cast<unsigned int>(floor(256.0 / colour.y)); 
+      bitmap[y][x][2] = static_cast<unsigned int>(floor(256.0 / colour.z)); 
+    } 
   }
 	
   delete[] output_h;
