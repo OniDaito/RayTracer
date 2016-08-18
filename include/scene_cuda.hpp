@@ -1,9 +1,17 @@
-#ifndef __scene_hpp__
-#define __scene_hpp__
+/**
+* @brief Test raytracer for Apocrita
+* @file scene_cuda.hpp
+* @author Benjamin Blundell <oni@section9.co.uk>
+* @date 18/08/2016
+*
+*/
+
+#ifndef __scene_cuda_hpp__
+#define __scene_cuda_hpp__
 
 #include <memory>
 
-#include "geometry.hpp"
+#include "geometry_cuda.hpp"
 #include "camera.hpp"
 #include "main.hpp"
 
@@ -16,10 +24,11 @@ struct Scene {
   std::vector< std::function<bool(const Ray &ray, RayHit &hit, std::shared_ptr<Material> &m)> > intersection_funcs;
   std::shared_ptr<Ground> ground;
   std::shared_ptr<Camera> camera;
-  glm::vec3 sky_colour;
+  float3 sky_colour;
 };
 
 Scene CreateScene(RaytraceOptions &options);
 
 #endif
+
 

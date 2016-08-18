@@ -4,7 +4,7 @@
 #include <iostream>
 #include <cuda_runtime.h>
 #include "main.hpp"
-#include "scene.hpp"
+#include "scene_cuda.hpp"
 #include "geometry_cuda.hpp"
 
 __global__ void RenderKernel(float3 *output);

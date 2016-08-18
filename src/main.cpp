@@ -24,7 +24,7 @@
 #include "mpi.hpp"
 #endif
 
-#ifdef _CUDA_RAYS
+#ifdef _USE_CUDA
 #include <cuda_runtime.h>
 #include <vector_types.h>
 #include "tracer_cuda.hpp"
@@ -187,7 +187,7 @@ int main (int argc, const char * argv[]) {
   std::cout << "Number of potential OpenMP Threads: " << omp_get_num_procs() << std::endl;
 
 
-#ifdef _CUDA_RAYS
+#ifdef _USE_CUDA
   RaytraceKernelCUDA(bitmap, options, scene);
 #else
   RaytraceKernel(bitmap, options, scene);
