@@ -256,12 +256,10 @@ void RaytraceKernel(RaytraceBitmap  &bitmap, const RaytraceOptions &options, con
 
       glm::vec3 ray_colour = FireRays(x, y, options, scene, cache);
 
-      /*unsigned long int colour;
-      colour = static_cast<unsigned long> (255 * ray_colour.x) << 16 |
-      static_cast<char> (255 * ray_colour.y) << 8 |
-      static_cast<char> (255 * ray_colour.z);*/
-
-      bitmap[y][x] = ray_colour;
+      bitmap.SetRGB(x,y,
+        static_cast<unsigned long> (255 * ray_colour.x), 
+        static_cast<unsigned long> (255 * ray_colour.y),
+        static_cast<unsigned long> (255 * ray_colour.z)); 
     }
   } 
 }

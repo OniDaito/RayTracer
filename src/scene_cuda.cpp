@@ -50,9 +50,6 @@ Scene CreateScene(RaytraceOptions &options){
         std::cout << "Added Sphere at " << pos.x << ", " << pos.y << ", " << pos.z << std::endl;
 #endif
         // push back a new lambda function that acts as a closure    
- //       auto hitfunc = [ss](const Ray &ray, RayHit &hit, Material *m) { m = ss->material; return ss->RayIntersection(ray,hit); };
-   //     scene.intersection_funcs.push_back(hitfunc);
-
       } else if (StringBeginsWith(line,"L")){
         std::string s;
         float l;
@@ -103,6 +100,7 @@ Scene CreateScene(RaytraceOptions &options){
     return scene;
   } 
 
+    
   // Test Spheres and lights for a default scene
   // Cant have them nearer than the near plane of the camera
 
@@ -140,18 +138,6 @@ Scene CreateScene(RaytraceOptions &options){
   s3->material = m3;
 
   // TODO - will need to remove the hit function thing for CUDA materials
-    
-//  auto hitfunc0 = [s0](const Ray &ray, RayHit &hit, Material *m) { m = s0->material; return s0->RayIntersection(ray,hit); };
-//  scene.intersection_funcs.push_back(hitfunc0);
-
-//  auto hitfunc1 = [s1](const Ray &ray, RayHit &hit, Material *m) { m = s1->material; return s1->RayIntersection(ray,hit); };
-//  scene.intersection_funcs.push_back(hitfunc1);
-
-//  auto hitfunc2 = [s2](const Ray &ray, RayHit &hit, Material *m) { m = s2->material; return s2->RayIntersection(ray,hit); };
-//  scene.intersection_funcs.push_back(hitfunc2);
-
-//  auto hitfunc3 = [s3](const Ray &ray, RayHit &hit, Material *m) { m = s3->material; return s3->RayIntersection(ray,hit); };
-//  scene.intersection_funcs.push_back(hitfunc3);
 
   scene.spheres.push_back(s0);
   scene.spheres.push_back(s1);
@@ -172,12 +158,11 @@ Scene CreateScene(RaytraceOptions &options){
   cu.x = 0.0f; cu.y = 1.0f; cu.z = 0.0f;
 
   scene.camera = new Camera(
-          ce,cl,cu,
-          options.width,options.height,90.0f,1.0f,100.f       
-        ); 
+    ce,cl,cu,
+    options.width,options.height,90.0f,1.0f,100.f       
+  ); 
 
   // Sky
-  
   scene.sky_colour.x = 0.0846f;
   scene.sky_colour.y = 0.0933f;
   scene.sky_colour.z = 0.0949f;

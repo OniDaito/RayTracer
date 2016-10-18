@@ -171,21 +171,11 @@ int main (int argc, const char * argv[]) {
 
   // Create the main buffer for our frame
   
-  RaytraceBitmap bitmap;
+  RaytraceBitmap bitmap(options.width, options.height);
   
-  // Set the background to black
-  
-  for (int i = 0; i < options.height; ++i){
-    bitmap.push_back( std::vector< glm::vec3 >() );
-    for (int j = 0; j < options.width; ++j){
-      bitmap[i].push_back( glm::vec3(0,0,0) );
-    }
-  }
-
   // Main process - create our window as well if we want?
   double time_total = omp_get_wtime();
   std::cout << "Number of potential OpenMP Threads: " << omp_get_num_procs() << std::endl;
-
 
 #ifdef _USE_CUDA
   RaytraceKernelCUDA(bitmap, options, scene);

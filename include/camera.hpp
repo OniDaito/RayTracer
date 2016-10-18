@@ -32,7 +32,7 @@
 struct Camera {
 
 #ifdef _USE_CUDA
-  __device__ Camera(float3 position, float3 lookat, float3 up, uint32_t width, uint32_t height, float fov, float near, float far) 
+  __host__ __device__ Camera(float3 position, float3 lookat, float3 up, uint32_t width, uint32_t height, float fov, float near, float far) 
     : up_(up), lookat_(lookat), position_(position), width_ (width), height_(height), fov_(fov), near_(near), far_(far)  {
       Update();      
     }
@@ -46,21 +46,21 @@ struct Camera {
 
 #ifdef _USE_CUDA
 
-  __device__ float3 position() { return position_; }
-  __device__ void position(float3 p) {position_ = p; Update(); }
+  __host__ __device__ float3 position() { return position_; }
+  __host__ __device__ void position(float3 p) {position_ = p; Update(); }
 
-  __device__ float3 lookat() { return lookat_; }
-  __device__ void lookat(float3 l) {lookat_ = l; Update(); }
+  __host__ __device__ float3 lookat() { return lookat_; }
+  __host__ __device__ void lookat(float3 l) {lookat_ = l; Update(); }
 
-  __device__ float3 up() { return up_; }
-  __device__ void up(float3 u) {up_ = u; Update(); }
+  __host__ __device__ float3 up() { return up_; }
+  __host__ __device__  void up(float3 u) {up_ = u; Update(); }
 
   // Dont like this pointer business on the matrices
-  __device__ Matrix4 projection() { return projection_; }
-  __device__ void projection(Matrix4 &m) { projection_ = m; }
+  __host__ __device__ Matrix4 projection() { return projection_; }
+  __host__ __device__ void projection(Matrix4 &m) { projection_ = m; }
 
-  __device__ Matrix4 view() { return view_; }
-  __device__ void view(Matrix4 &m) { view_ = m; }
+  __host__ __device__ Matrix4 view() { return view_; }
+  __host__ __device__ void view(Matrix4 &m) { view_ = m; }
 
 #else
 
@@ -97,7 +97,7 @@ struct Camera {
   void fov(float f) { fov_ = f; }
 
 #ifdef _USE_CUDA
-  __device__ void Update() {
+  __host__ __device__ void Update() {
     projection_.Perspective(fov_, width_ / height_, near_, far_);
     view_.LookAt(position_, lookat_, up_);
   }

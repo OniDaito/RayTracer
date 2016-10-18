@@ -7,6 +7,7 @@
 */
 
 #include <fstream>
+#include <iostream>
 #include "bmp.hpp"
 
 using namespace std;
@@ -82,10 +83,10 @@ void WriteBitmap (RaytraceBitmap &bitmap, RaytraceOptions &options) {
   for (int y = options.height - 1; y >= 0; --y ){
 
     for (int x = 0; x < options.width; ++x){
-      glm::vec3 colour = bitmap[y][x];
-      char b = char( floor( colour.x * 255));
-      char g = char( floor( colour.y * 255));
-      char r = char( floor( colour.z * 255));
+      BitmapRGB colour = bitmap.GetRGB(x,y);
+      char b = char( colour.r );
+      char g = char( colour.g );
+      char r = char( colour.b );
       myfile << r << g << b;
     }
     for (int b = 0; b < extra_bytes; ++b){

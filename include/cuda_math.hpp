@@ -14,25 +14,27 @@
 
 // CUDA Based Matrix and vector functions implementation 
 
-__device__ float3 normalize(float3 &v);
+// TODO - I think we can also use cutil_math.h
 
-__device__ float3 subtract(float3 &lhs, float3 &rhs);
+__host__ __device__ float3 normalize(float3 &v);
 
-__device__ float dot(float3 &lhs, float3 &rhs);
+__host__ __device__ float3 subtract(float3 &lhs, float3 &rhs);
 
-__device__ float3 multiply(float3 &lhs, float3 &rhs);
+__host__ __device__ float dot(float3 &lhs, float3 &rhs);
 
-__device__ float3 multiplyScalar(float3 &lhs, float rhs);
+__host__ __device__ float3 multiply(float3 &lhs, float3 &rhs);
 
-__device__ float4 multiply(float4 &lhs, float4 &rhs);
+__host__ __device__ float3 multiplyScalar(float3 &lhs, float rhs);
 
-__device__ float4 multiplyScalar(float4 &lhs, float rhs);
+__host__ __device__ float4 multiply(float4 &lhs, float4 &rhs);
 
-__device__ float3 cross(float3 &lhs, float3 &rhs);
+__host__ __device__ float4 multiplyScalar(float4 &lhs, float rhs);
+
+__host__ __device__ float3 cross(float3 &lhs, float3 &rhs);
 
 struct Matrix4{
   // TODO - could just have a func that takes both sides - faster? No this pointer needed?
-  __device__ Matrix4& operator =(const Matrix4& rhs){
+  __host__ __device__ Matrix4& operator =(const Matrix4& rhs){
     cols[0] = rhs.cols[0];
     cols[1] = rhs.cols[1];
     cols[2] = rhs.cols[2];
@@ -40,14 +42,14 @@ struct Matrix4{
     return *this;
   }
 
-  __device__ void Zero(void){
+  __host__ __device__ void Zero(void){
     cols[0].x = cols[0].y = cols[0].z = cols[0].w = 0;
     cols[1].x = cols[1].y = cols[1].z = cols[1].w = 0;
     cols[2].x = cols[2].y = cols[2].z = cols[2].w = 0;
     cols[3].x = cols[3].y = cols[3].z = cols[3].w = 0;
   }
 
-  __device__ void Identity(void) {
+  __host__ __device__ void Identity(void) {
     cols[0].y = cols[0].z = cols[0].w = 0;
     cols[1].x = cols[1].z = cols[1].w = 0;
     cols[2].x = cols[2].y = cols[2].w = 0;
@@ -55,7 +57,7 @@ struct Matrix4{
     cols[0].x = cols[1].y = cols[2].z = cols[3].w = 1.0f;
   }
 
-  __device__ float4 MultiplyVec(float4 &v) {
+  __host__ __device__ float4 MultiplyVec(float4 &v) {
     float4 r;
     r.x = cols[0].x * v.x + cols[1].x * v.y + cols[2].x * v.z + cols[3].x * v.w;
     r.y = cols[0].y * v.x + cols[1].y * v.y + cols[2].y * v.z + cols[3].y * v.w;
@@ -66,7 +68,7 @@ struct Matrix4{
 
   // TODO - OpenMP / Vectorised potentially, although this is likely to go onto
   // the graphics card via cuda instead
-  __device__ Matrix4 operator *(const Matrix4& rhs) {
+  __host__ __device__ Matrix4 operator *(const Matrix4& rhs) {
     Matrix4 m;
 
     // Row 0
@@ -97,7 +99,7 @@ struct Matrix4{
   }
 
   // This results in the same as gluPerspective
-  __device__ void Perspective(float fov, float ratio, float near, float far) {
+  __host__ __device__ void Perspective(float fov, float ratio, float near, float far) {
     Identity();
     float d  = 1.0f/tanf(fov/2.0f);
     cols[0].x = d/ratio;
@@ -109,7 +111,7 @@ struct Matrix4{
 
   }
 
-  __device__ void LookAt(float3 &pos, float3 &look, float3 &up) {
+  __host__ __device__ void LookAt(float3 &pos, float3 &look, float3 &up) {
     float3 dirv = subtract(look,pos);
     dirv = normalize(dirv);
     float3 tt = multiplyScalar(dirv,dot(up,dirv));
