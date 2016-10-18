@@ -19,11 +19,11 @@
 // http://stackoverflow.com/questions/7477310/why-cant-i-create-a-vector-of-lambda-in-c11
 
 struct Scene {
-  std::vector< std::shared_ptr<Sphere> >  spheres;  
-  std::vector< std::shared_ptr<Light> > lights;
-  std::vector< std::function<bool(const Ray &ray, RayHit &hit, std::shared_ptr<Material> &m)> > intersection_funcs;
-  std::shared_ptr<Ground> ground;
-  std::shared_ptr<Camera> camera;
+  std::vector< Sphere* >  spheres;  
+  std::vector< Light* > lights;
+  std::vector< std::function<bool(const Ray &ray, RayHit &hit, Material *m)> > intersection_funcs;
+  Ground* ground;
+  Camera* camera;
   float3 sky_colour;
 };
 

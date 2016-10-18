@@ -12,6 +12,8 @@
 using namespace std;
 
 __device__ Ray GenerateRay() {
+  Ray r;
+  return r;
 }
 
 

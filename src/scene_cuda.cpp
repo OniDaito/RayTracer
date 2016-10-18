@@ -24,7 +24,7 @@ Scene CreateScene(RaytraceOptions &options){
 
   Scene scene;
 
-  scene.sky_colour = glm::vec3(0,0,0);
+  scene.sky_colour.x = scene.sky_colour.y = scene.sky_colour.z = 0.0f; 
 
   if (options.scene_filename != "none"){
     
@@ -38,56 +38,63 @@ Scene CreateScene(RaytraceOptions &options){
 
       if (StringBeginsWith(line,"S")){
         std::string s;
-        float x,y,z,r, mr, mg, mb, sy;
-        iss >> s >> x >> y >> z >> r >> mr >> mg >> mb >> sy; 
-        std::shared_ptr<Sphere> ss(new Sphere(glm::vec3(x,y,z),r));
-        std::shared_ptr<Material> mm (new Material( glm::vec3(mr,mg,mb), sy));
+        float r, sy;
+        float3 pos;
+        float3 mat;
+        iss >> s >> pos.x >> pos.y >> pos.z >> r >> mat.x >> mat.y >> mat.z >> sy;
+        Sphere *ss = new Sphere(pos,r);
+        Material *mm = new Material(mat, sy);
         ss->material = mm;
         scene.spheres.push_back(ss);
-        std::cout << "Added Sphere at " << x << ", " << y << ", " << z << std::endl;
-  
+#ifdef _DEBUG
+        std::cout << "Added Sphere at " << pos.x << ", " << pos.y << ", " << pos.z << std::endl;
+#endif
         // push back a new lambda function that acts as a closure    
-        auto hitfunc = [ss](const Ray &ray, RayHit &hit, std::shared_ptr<Material> &m) { m = ss->material; return ss->RayIntersection(ray,hit); };
-        scene.intersection_funcs.push_back(hitfunc);
+ //       auto hitfunc = [ss](const Ray &ray, RayHit &hit, Material *m) { m = ss->material; return ss->RayIntersection(ray,hit); };
+   //     scene.intersection_funcs.push_back(hitfunc);
 
       } else if (StringBeginsWith(line,"L")){
         std::string s;
-        float x,y,z,r,g,b,l;
-        iss >> s >> r >> g >> b >> x >> y >> z >> l;
-        std::shared_ptr<Light> ll ( new Light(glm::vec3(x,y,z), glm::vec3(r,g,b), l));
+        float l;
+        float3 pos, col;
+        iss >> s >> col.x >> col.y >> col.z >> pos.x >> pos.y >> pos.z >> l;
+        Light* ll = new Light(pos,col, l);
         scene.lights.push_back(ll); // We add to both objects and lights for now
+#ifdef _DEBUG
         std::cout << "Added Light at " << x << ", " << y << ", " << z << std::endl;
-      
+#endif
       } else if (StringBeginsWith(line,"C")){
         std::string s;
-        float ex,ey,ez, lx,ly,lz, ux,uy,uz, fov, n,f;
+        float fov, n,f;
+        float3 eye, look, up;
         int w,h;
-        iss >> s >> ex >> ey >> ez >> lx >> ly >> lz >> ux >> uy >> uz >> w >> h >> fov >> n >> f;
+        iss >> s >> eye.x >> eye.y >> eye.z >> look.x >> look.y >> look.z >> up.x >> up.y >> up.z >> w >> h >> fov >> n >> f;
         
-        scene.camera = std::shared_ptr<Camera> ( new Camera(
-          glm::vec3(ex,ey,ez),
-          glm::vec3(lx,ly,lz),
-          glm::vec3(ux,uy,uz),
+        scene.camera = new Camera(
+          eye,
+          look,
+          up,
           w,h,fov,n,f       
-        ));
-
+        );
+#ifdef _DEBUG
         std::cout << "Added Camera at " << ex << "," << ey << "," << ez << std::endl; 
-
+#endif
       } else if (StringBeginsWith(line,"G")){
         std::string s;
-        float gy, mr, mg, mb, ms;
-        iss >> s >> gy >> mr >> mg >> mb >> ms;
+        float gy, ms;
+        float3 col;
+        iss >> s >> gy >> col.x >> col.y >> col.z >> ms;
 
-        scene.ground = std::shared_ptr<Ground> (new Ground(gy));
-        std::shared_ptr<Material> mm (new Material( glm::vec3(mr,mg,mb), ms));
+        scene.ground = new Ground(gy);
+        Material *mm = new Material( col, ms);
         scene.ground->material = mm;
 
 
       } else if (StringBeginsWith(line,"K")){
         std::string s;
-        float sr, sg, sb;
-        iss >> s >> sr >> sg >> sb; 
-        scene.sky_colour = glm::vec3(sr,sg,sb);
+        float3 col;
+        iss >> s >> col.x >> col.y >> col.z; 
+        scene.sky_colour = col;
 
       }
  
@@ -101,17 +108,30 @@ Scene CreateScene(RaytraceOptions &options){
 
   // TODO - roll this into the above function I think
 
-  std::shared_ptr<Sphere> s0( new Sphere(glm::vec3(0.0f, 1.0f, 0.0f), 1.0f));
-  std::shared_ptr<Sphere> s1( new Sphere(glm::vec3(2.3f, 1.0f, 2.5f), 0.75f));
-  std::shared_ptr<Sphere> s2( new Sphere(glm::vec3(-3.2f, 1.0f, -1.5f), 0.75f));
-  std::shared_ptr<Sphere> s3( new Sphere(glm::vec3(0.0f, 1.0f, 2.0f), 0.75f));
-  std::shared_ptr<Material> m0(new Material(glm::vec3(0.0f,0.0f,1.0f), 0.0));
-  std::shared_ptr<Material> m1(new Material(glm::vec3(1.0f,0.0f,0.0f), 0.1));
-  std::shared_ptr<Material> m2(new Material(glm::vec3(0.0f,1.0f,1.0f), 0.9));
-  std::shared_ptr<Material> m3(new Material(glm::vec3(0.0f,1.0f,1.0f), 0.2));
-  std::shared_ptr<Material> m4(new Material(glm::vec3(0.312f,0.785f,0.123f), 0.2));
+  float3 p0,p1,p2,p3;
+  float3 c0,c1,c2,c3,c4;
+  p0.x = 0.0f;  p0.y = 1.0f; p0.z = 0.0f;
+  p1.x = 2.3f;  p1.y = 1.0f; p1.z = 2.5f;
+  p2.x = -3.2f; p2.y = 1.0f; p2.z = -1.5f;
+  p3.x = 0.0f;  p3.y = 1.0f; p3.z = 2.0f;
+  c0.x = 0.0f;  c0.y = 0.0f; c0.z = 1.0f;
+  c1.x = 1.0f;  c1.y = 0.0f; c1.z = 0.0f;
+  c2.x = 0.0f;  c2.y = 1.0f; c2.z = 1.0f;
+  c3.x = 0.0f;  c3.y = 1.0f; c3.z = 1.0f;
+  c4.x = 0.312f;  c4.y = 0.785f; c4.z = 0.213f;
 
-  std::shared_ptr<Ground> g0(new Ground(0.0f));
+
+  Sphere *s0 = new Sphere(p0, 1.0f);
+  Sphere *s1 = new Sphere(p1, 0.75f);
+  Sphere *s2 = new Sphere(p2, 0.75f);
+  Sphere *s3 = new Sphere(p3, 0.75f);
+  Material *m0 = new Material(c0, 0.0);
+  Material *m1 = new Material(c1, 0.1);
+  Material *m2 = new Material(c2, 0.9);
+  Material *m3 = new Material(c3, 0.2);
+  Material *m4 = new Material(c4, 0.2);
+
+  Ground *g0 = new Ground(0.0f);
   g0->material = m4;
 
   s0->material = m0;
@@ -119,17 +139,19 @@ Scene CreateScene(RaytraceOptions &options){
   s2->material = m2;
   s3->material = m3;
 
-  auto hitfunc0 = [s0](const Ray &ray, RayHit &hit, std::shared_ptr<Material> &m) { m = s0->material; return s0->RayIntersection(ray,hit); };
-  scene.intersection_funcs.push_back(hitfunc0);
+  // TODO - will need to remove the hit function thing for CUDA materials
+    
+//  auto hitfunc0 = [s0](const Ray &ray, RayHit &hit, Material *m) { m = s0->material; return s0->RayIntersection(ray,hit); };
+//  scene.intersection_funcs.push_back(hitfunc0);
 
-  auto hitfunc1 = [s1](const Ray &ray, RayHit &hit, std::shared_ptr<Material> &m) { m = s1->material; return s1->RayIntersection(ray,hit); };
-  scene.intersection_funcs.push_back(hitfunc1);
+//  auto hitfunc1 = [s1](const Ray &ray, RayHit &hit, Material *m) { m = s1->material; return s1->RayIntersection(ray,hit); };
+//  scene.intersection_funcs.push_back(hitfunc1);
 
-  auto hitfunc2 = [s2](const Ray &ray, RayHit &hit, std::shared_ptr<Material> &m) { m = s2->material; return s2->RayIntersection(ray,hit); };
-  scene.intersection_funcs.push_back(hitfunc2);
+//  auto hitfunc2 = [s2](const Ray &ray, RayHit &hit, Material *m) { m = s2->material; return s2->RayIntersection(ray,hit); };
+//  scene.intersection_funcs.push_back(hitfunc2);
 
-  auto hitfunc3 = [s3](const Ray &ray, RayHit &hit, std::shared_ptr<Material> &m) { m = s3->material; return s3->RayIntersection(ray,hit); };
-  scene.intersection_funcs.push_back(hitfunc3);
+//  auto hitfunc3 = [s3](const Ray &ray, RayHit &hit, Material *m) { m = s3->material; return s3->RayIntersection(ray,hit); };
+//  scene.intersection_funcs.push_back(hitfunc3);
 
   scene.spheres.push_back(s0);
   scene.spheres.push_back(s1);
@@ -138,20 +160,27 @@ Scene CreateScene(RaytraceOptions &options){
   scene.ground = g0;
 
   // Lights
-  std::shared_ptr<Light> l0 (new Light( glm::vec3(0.0f,12.0f,3.0f),  glm::vec3(0.1f,0.1f,0.1f), 5.0f) );
+  float3 lp, lc;
+  lp.x = 0.0f; lp.y = 12.0f; lp.z = 3.0f; lc.x = 0.1f; lc.y = 0.1f; lc.z=0.1f;
+  Light *l0 = new Light( lp, lc, 5.0f) ;
   scene.lights.push_back(l0);
 
   // Camera  
-  scene.camera = std::shared_ptr<Camera> ( new Camera(
-          glm::vec3(0.0f,2.0f,5.0f),
-          glm::vec3(0.0f,0.0f,0.0f),
-          glm::vec3(0.0f,1.0f,0.0f),
+  float3 ce,cl,cu;
+  ce.x = 0.0f; ce.y = 2.0f; ce.z = 5.0f;
+  cl.x = 0.0f; cl.y = 0.0f; cl.z = 0.0f;
+  cu.x = 0.0f; cu.y = 1.0f; cu.z = 0.0f;
+
+  scene.camera = new Camera(
+          ce,cl,cu,
           options.width,options.height,90.0f,1.0f,100.f       
-        )); 
+        ); 
 
   // Sky
   
-  scene.sky_colour = glm::vec3(0.0846f, 0.0933f, 0.0949f);
+  scene.sky_colour.x = 0.0846f;
+  scene.sky_colour.y = 0.0933f;
+  scene.sky_colour.z = 0.0949f;
 
   return scene;
 }

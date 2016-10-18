@@ -6,7 +6,6 @@
 *
 */
 
-
 /// Useful maths stuff
 
 #ifndef MATH_UTILS_HPP

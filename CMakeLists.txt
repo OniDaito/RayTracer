@@ -41,14 +41,13 @@ if (USE_MPI)
   include_directories(MPI_INCLUDE_PATH)
 endif()
 
-if (USE_OPENMP)
-  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
-endif()
+# We include this anyways for timing functions
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
 
 if (USE_CUDA)
   set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_USE_CUDA")
   set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -D_FORCE_INLINES -O3 -gencode arch=compute_35,code=sm_35)
-  CUDA_ADD_EXECUTABLE(rays src/main.cpp src/obj_loader.cpp src/file.cpp src/scene_cuda.cpp src/bmp.cpp src/tracer.cu)
+  CUDA_ADD_EXECUTABLE(rays src/main.cpp src/obj_loader.cpp src/file.cpp src/scene_cuda.cpp src/bmp.cpp src/tracer.cu src/cuda_math.cu)
 else()
   ADD_EXECUTABLE(rays src/geometry.cpp src/main.cpp src/obj_loader.cpp src/file.cpp src/scene.cpp src/bmp.cpp src/tracer.cpp)
   target_link_libraries(rays ${MPI_LIBRARIES} X11) 
