@@ -29,8 +29,11 @@ __global__ void RenderKernel(RaytraceOptions options, float3 *output) {
   unsigned int i = y * options.width + x; // index of current pixel (calculated using thread index)
 
   if (i < options.height * options.width){
-    output[i].x = 1.0f;
-  } 
+    output[i].x = 1.0f; 
+    output[i].y = 1.0f;
+    output[i].z = 1.0f;
+  }
+
 }
 
 void RaytraceKernelCUDA(RaytraceBitmap &bitmap, const RaytraceOptions &options, const Scene &scene)  {
@@ -51,9 +54,12 @@ void RaytraceKernelCUDA(RaytraceBitmap &bitmap, const RaytraceOptions &options, 
 	dim3 grid(options.width / block.x, options.height / block.y, 1);
 
 	cout << "CUDA initialised. Start rendering..." << endl;
- 
-	// schedule threads on device and launch CUDA kernel from host
+  cout << cudaGetLastError() << endl;
+	
+  // schedule threads on device and launch CUDA kernel from host
 	RenderKernel <<< grid, block >>>(options, output_d);  
+  cout << cudaGetErrorString(cudaGetLastError()) << endl;
+  cudaDeviceSynchronize(); // Probably dont need this now
 
 	// copy results of computation from device back to host
 	// TODO - remove this double copy and go straight to bitmap if we can
@@ -62,7 +68,6 @@ void RaytraceKernelCUDA(RaytraceBitmap &bitmap, const RaytraceOptions &options, 
 	for (int x = 0; x < options.width; ++x) {
 	  for (int y = 0; y < options.height; ++y) {
       float3 colour = output_h[ options.width * y + x] ; 
-      cout << colour.x << ", " << colour.y << ", " << colour.z << endl;
       bitmap.SetRGB(x,y,colour.x,colour.y,colour.z);
     } 
   }
