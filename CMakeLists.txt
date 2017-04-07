@@ -24,6 +24,9 @@ option(USE_MPI "Use MPI for larger parallel sections" NO)
 # OpenMP
 option(USE_OPENMP "Use OpenMP for parallel sections" YES)
 
+# Windowed version
+option(USE_WINDOW "Create an X11 Window to view live progress" NO)
+
 # Options (gcc mostly) 
 SET(CMAKE_CXX_FLAGS "-std=c++11 -static-libstdc++")
 SET(CMAKE_CXX_FLAGS_DEBUG "-g -std=c++11 -static-libstdc++")
@@ -47,9 +50,23 @@ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
 if (USE_CUDA)
   set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_USE_CUDA")
   set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -D_FORCE_INLINES -O3 -gencode arch=compute_52,code=sm_52)
-  CUDA_ADD_EXECUTABLE(rays src/main.cpp src/obj_loader.cpp src/file.cpp src/scene_cuda.cpp src/bmp.cpp src/tracer.cu src/cuda_math.cu)
+
+  set (SOURCES src/main.cpp src/obj_loader.cpp src/file.cpp src/scene_cuda.cpp src/bmp.cpp src/tracer.cu src/cuda_math.cu)
+
+  if (USE_WINDOW)
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_USE_WINDOW")
+    set (SOURCES ${SOURCES} src/window.cpp)
+  endif()
+
+  CUDA_ADD_EXECUTABLE(rays ${SOURCES})
 else()
-  ADD_EXECUTABLE(rays src/geometry.cpp src/main.cpp src/obj_loader.cpp src/file.cpp src/scene.cpp src/bmp.cpp src/tracer.cpp)
+  set (SOURCES src/geometry.cpp src/main.cpp src/obj_loader.cpp src/file.cpp src/scene.cpp src/bmp.cpp src/tracer.cpp)
+  if (USE_WINDOW)
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_USE_WINDOW")
+    set (SOURCES ${SOURCES} src/window.cpp)
+  endif()
+
+  ADD_EXECUTABLE(rays ${SOURCES})
   target_link_libraries(rays ${MPI_LIBRARIES} X11) 
 endif()
 

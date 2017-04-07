@@ -84,10 +84,10 @@ void WriteBitmap (RaytraceBitmap &bitmap, RaytraceOptions &options) {
 
     for (int x = 0; x < options.width; ++x){
       BitmapRGB colour = bitmap.GetRGB(x,y);
-      char b = char( colour.r );
-      char g = char( colour.g );
-      char r = char( colour.b );
-      myfile << r << g << b;
+      char r = colour.r;
+      char g = colour.g;
+      char b = colour.b;
+      myfile << b << g << r;
     }
     for (int b = 0; b < extra_bytes; ++b){
       myfile << 'a';

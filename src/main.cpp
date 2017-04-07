@@ -17,6 +17,8 @@
 #include <simplex.hpp>
 #include <iostream>
 #include <fstream>
+#include <chrono>
+#include <thread>
 
 #include <omp.h>
 
@@ -34,6 +36,10 @@
 #include "geometry.hpp"
 #endif
 
+#ifdef _USE_WINDOW
+#include "window.hpp"
+#endif
+
 #include "main.hpp"
 #include "bmp.hpp"
 
@@ -43,10 +49,16 @@
 using namespace std;
 using namespace s9;
 
+
 int getRandomNumber() {
   return 4; // Chosen by fair dice roll
             // Guaranteed to be random
 }
+
+// Naughty global for the main running thread but we keep it here for now
+#ifdef _USE_WINDOW
+bool window_running = false;
+#endif
 
 // Command line opttions parsing
 
@@ -136,6 +148,13 @@ void signal_callback_handler(int signum) {
   exit(signum); 
 }
 
+// Called from the pthread that listens for Windows Events
+void RaysQuit() {
+#ifdef _USE_WINDOW
+  window_running = false;
+#endif
+}
+
 // Our main function - sets up MPI and similar
 
 int main (int argc, const char * argv[]) {
@@ -169,10 +188,17 @@ int main (int argc, const char * argv[]) {
 
   Scene scene = CreateScene(options);
 
-  // Create the main buffer for our frame
-  
+  // Create the main buffer for our frame 
   RaytraceBitmap bitmap(options.width, options.height);
-  
+
+  // Window bit
+#ifdef _USE_WINDOW
+  if (options.live){
+    CreateWindow(options, bitmap);
+    window_running = true;
+  }
+#endif
+
   // Main process - create our window as well if we want?
   double time_total = omp_get_wtime();
   std::cout << "Number of potential OpenMP Threads: " << omp_get_num_procs() << std::endl;
@@ -186,8 +212,15 @@ int main (int argc, const char * argv[]) {
   time_total = omp_get_wtime() - time_total; 
   std::cout << "Time Total: " << time_total << "(s)" << std::endl;
 
-  // Write out the bitmap
-  
+  // Write out the bitmap  
   WriteBitmap(bitmap, options);
 
+#ifdef _USE_WINDOW
+  if (options.live) {
+    while(window_running){
+      // Infinite loop whilst we dont close the window       
+      std::this_thread::sleep_for(std::chrono::milliseconds(1000)); 
+    }
+  }
+#endif
 }

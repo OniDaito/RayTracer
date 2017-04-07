@@ -109,9 +109,12 @@ Scene CreateScene(RaytraceOptions &options){
   std::shared_ptr<Material> m1(new Material(glm::vec3(1.0f,0.0f,0.0f), 0.1));
   std::shared_ptr<Material> m2(new Material(glm::vec3(0.0f,1.0f,1.0f), 0.9));
   std::shared_ptr<Material> m3(new Material(glm::vec3(0.0f,1.0f,1.0f), 0.2));
-  std::shared_ptr<Material> m4(new Material(glm::vec3(0.312f,0.785f,0.123f), 0.2));
+  //std::shared_ptr<Material> m4(new Material(glm::vec3(0.312f,0.785f,0.123f), 0.2));
 
+  std::shared_ptr<Material> m4(new Material(glm::vec3(0.0f, 0.785f, 0.0f), 0.2));
+  
   std::shared_ptr<Ground> g0(new Ground(0.0f));
+  
   g0->material = m4;
 
   s0->material = m0;

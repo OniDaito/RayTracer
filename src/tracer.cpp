@@ -10,6 +10,10 @@
 #include "main.hpp"
 #include "string_utils.hpp"
 
+#ifdef _USE_WINDOW
+#include "window.hpp"
+#endif
+
 #include <iostream>
 #include <ostream>
 #include <cstdlib>
@@ -239,7 +243,6 @@ void CreateCache(const Scene &scene, Cache &cache) {
   cache.inv_view_proj = glm::inverse(scene.camera->view()) * glm::inverse(scene.camera->projection());
 }
 
-
 // The Core of the Raytracer for an entire frame
 
 void RaytraceKernel(RaytraceBitmap  &bitmap, const RaytraceOptions &options, const Scene &scene ) {
@@ -250,17 +253,17 @@ void RaytraceKernel(RaytraceBitmap  &bitmap, const RaytraceOptions &options, con
   #pragma omp parallel for
   for (int i = 0; i < options.height; ++i ){
     for (int j = 0; j < options.width; ++j ) {
-     
       int x = j;
       int y = i;
-
       glm::vec3 ray_colour = FireRays(x, y, options, scene, cache);
-
-      bitmap.SetRGB(x,y,
-        static_cast<unsigned long> (255 * ray_colour.x), 
-        static_cast<unsigned long> (255 * ray_colour.y),
-        static_cast<unsigned long> (255 * ray_colour.z)); 
+      bitmap.SetRGB(x,y,ray_colour.x, ray_colour.y, ray_colour.z); 
     }
+#ifdef _USE_WINDOW
+      if (options.live){
+        UpdateImage(options);
+      }
+#endif
+
   } 
 }
 
